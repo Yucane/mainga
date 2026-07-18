@@ -757,7 +757,7 @@ export default function Mainga() {
                 )
                 : renderAuthForm("Entre com o seu email para aceder ao painel administrador.")
             )}
-            {(view === "privacidade" || view === "termos") && (
+            {(view === "sobre" || view === "privacidade" || view === "termos") && (
               <Legal page={view} onNavigate={setView} />
             )}
           </>
@@ -767,6 +767,9 @@ export default function Mainga() {
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 flex-wrap font-mono" style={{ color: C.line }}>
+          <button onClick={() => setView("sobre")} style={{ color: C.line }} className="underline">
+            sobre
+          </button>
           <button onClick={() => setView("privacidade")} style={{ color: C.line }} className="underline">
             privacidade
           </button>
@@ -860,17 +863,18 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
         <div className="flex items-center gap-2 mb-3" style={{ color: C.gold }}>
           <Activity size={16} />
           <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            Publica agora o teu pedido ou procura por um doador compatível
+            {stats.openRequests > 0
+              ? `${stats.openRequests} pedido${stats.openRequests > 1 ? "s" : ""} de sangue em aberto agora`
+              : "Publica agora o teu pedido ou procura por um doador compatível"}
           </span>
         </div>
-        {stats.openRequests > 0 && (
-          <h1
-            className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
-            style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
-          >
-            {stats.openRequests} pedido{stats.openRequests > 1 ? "s" : ""} de sangue em aberto agora
-          </h1>
-        )}
+        <h1
+          className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
+          style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
+        >
+          Uma bolsa de sangue pode salvar uma vida.{" "}
+          <span style={{ color: C.garnet }}>A Mainga aproxima quem precisa de quem pode doar.</span>
+        </h1>
         <p className="text-sm max-w-xl" style={{ color: C.muted }}>
           Angola precisa de mais de <strong style={{ color: C.paper }}>360 mil doadores voluntários de sangue</strong>,
           mas atualmente conta com menos de metade desse número. A sua próxima doação pode salvar a vida
@@ -1785,7 +1789,14 @@ function Legal({ page, onNavigate }) {
 
   return (
     <div className="fadeUp max-w-2xl mx-auto">
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-wrap">
+        <button
+          onClick={() => onNavigate("sobre")}
+          className="px-3 py-1.5 rounded-full text-sm font-medium"
+          style={{ background: page === "sobre" ? C.garnetSoft : "transparent", color: page === "sobre" ? C.garnet : C.muted }}
+        >
+          Sobre
+        </button>
         <button
           onClick={() => onNavigate("privacidade")}
           className="px-3 py-1.5 rounded-full text-sm font-medium"
@@ -1801,6 +1812,46 @@ function Legal({ page, onNavigate }) {
           Termos de Utilização
         </button>
       </div>
+
+      {page === "sobre" && (
+        <>
+          <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>Sobre a Mainga</h2>
+          <p className="text-xs mb-6" style={{ color: C.faint }}>A história por trás do projecto</p>
+
+          <Section title="Porque existe a Mainga">
+            <p className="mb-2">
+              A Mainga nasceu de uma perda que não devia ter acontecido. Um mês, a filha de uma amiga
+              da família perdeu a vida — não por falta de tratamento, não por falta de esperança, mas por falta de um
+              doador de sangue a tempo. Quando a família precisou, a única forma de procurar ajuda foi
+              publicar no estado do WhatsApp e esperar que alguém visse, partilhasse, e chegasse a tempo.
+            </p>
+            <p>
+              Isso não devia depender de sorte, nem de quantos seguidores alguém tem. Devia ser tão simples
+              como abrir uma aplicação e encontrar quem pode ajudar. A Mainga existe para ser essa ponte.
+            </p>
+          </Section>
+
+          <Section title="Missão">
+            <p>
+              Ligar, de forma rápida e directa, quem precisa urgentemente de sangue a doadores voluntários
+              em Angola — sem depender de correntes de WhatsApp, sem precisar de conhecer alguém famoso, e
+              sem custos para ninguém.
+            </p>
+          </Section>
+
+          <Section title="Visão">
+            <p className="mb-2">
+              Um Angola onde nenhuma família perde alguém que ama só porque não conseguiu encontrar um
+              doador compatível a tempo — onde a distância entre "preciso de ajuda" e "encontrei quem me
+              ajude" se mede em minutos, não em dias.
+            </p>
+            <p>
+              A Mainga é um projecto comunitário, sem fins lucrativos, feito por alguém que decidiu que esta
+              dor não devia repetir-se para mais ninguém.
+            </p>
+          </Section>
+        </>
+      )}
 
       {page === "privacidade" ? (
         <>
@@ -1875,4 +1926,5 @@ function Legal({ page, onNavigate }) {
     </div>
   );
 }
+
 
