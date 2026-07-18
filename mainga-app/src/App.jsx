@@ -92,6 +92,7 @@ async function sbFetch(path, { method = "GET", body, token, headers = {} } = {})
 const authApi = {
   sendCode: (email) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: true } }),
   verifyCode: (email, token) => sbFetch("/auth/v1/verify", { method: "POST", body: { type: "email", email, token } }),
+  getUser: (token) => sbFetch("/auth/v1/user", { token }),
 };
 
 /* mapear entre snake_case (base de dados) e camelCase (usado na app) */
@@ -346,6 +347,24 @@ export default function Mainga() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [view]);
+
+  useEffect(() => {
+    if (!window.location.hash || !window.location.hash.includes("access_token")) return;
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = params.get("access_token");
+    if (!accessToken) return;
+    (async () => {
+      try {
+        const user = await authApi.getUser(accessToken);
+        setSession({ token: accessToken, user });
+        showToast("Sessão iniciada a partir do link do email.");
+      } catch (err) {
+        showToast(`Erro ao confirmar login: ${err.message}`, "garnet");
+      } finally {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    })();
+  }, []);
 
   const showToast = useCallback((msg, tone = "green") => {
     setToast({ msg, tone });
@@ -711,7 +730,7 @@ export default function Mainga() {
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 font-mono" style={{ color: C.line }}>
-          build-2026-07-17-mainga-v3
+          build-2026-07-18-mainga-emaillink
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             painel administrador
           </button>
