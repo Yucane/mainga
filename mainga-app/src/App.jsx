@@ -705,9 +705,14 @@ export default function Mainga() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
         {loading ? (
-          <div className="py-24 text-center" style={{ color: C.muted }}>A carregar…</div>
+          <div className="py-24 flex flex-col items-center gap-3" style={{ color: C.muted }}>
+            <div style={{ animation: "pulseDot 1.2s ease-in-out infinite" }}>
+              <PulseLine w={80} />
+            </div>
+            <span className="text-sm">A carregar…</span>
+          </div>
         ) : (
           <>
             {view === "feed" && (
@@ -750,14 +755,22 @@ export default function Mainga() {
                 )
                 : renderAuthForm("Entre com o seu email para aceder ao painel administrador.")
             )}
+            {(view === "privacidade" || view === "termos") && (
+              <Legal page={view} onNavigate={setView} />
+            )}
           </>
         )}
       </main>
 
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
-        <div className="mt-3 flex items-center gap-3 font-mono" style={{ color: C.line }}>
-          build-2026-07-18-mainga-photos3
+        <div className="mt-3 flex items-center gap-3 flex-wrap font-mono" style={{ color: C.line }}>
+          <button onClick={() => setView("privacidade")} style={{ color: C.line }} className="underline">
+            privacidade
+          </button>
+          <button onClick={() => setView("termos")} style={{ color: C.line }} className="underline">
+            termos
+          </button>
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             painel administrador
           </button>
@@ -799,7 +812,7 @@ function HeroPhotoBanner() {
   }, []);
 
   return (
-    <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 180, background: C.surface, border: `1px solid ${C.line}` }}>
+    <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 180, background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
       {HERO_PHOTOS.map((photo, i) => (
         <img
           key={photo.url}
@@ -905,7 +918,7 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
       {shown.length === 0 ? (
         <div
           className="text-center py-16 rounded-xl"
-          style={{ background: C.surface, border: `1px dashed ${C.line}`, color: C.muted }}
+          style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px dashed ${C.line}`, color: C.muted }}
         >
           <p className="mb-1">Sem pedidos aqui neste momento.</p>
         </div>
@@ -931,7 +944,7 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
 function StatCard({ label, value, tone, pulse }) {
   const colors = { garnet: C.garnet, green: C.green, gold: C.gold };
   return (
-    <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: C.surface, border: `1px solid ${pulse ? C.gold : C.line}` }}>
+    <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${pulse ? C.gold : C.line}` }}>
       {pulse && (
         <span
           className="absolute top-3 right-3 w-2 h-2 rounded-full"
@@ -969,7 +982,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
   return (
     <div
       className="rounded-xl p-4 sm:p-5 fadeUp"
-      style={{ background: C.surface, border: `1px solid ${flagged ? C.gold : C.line}` }}
+      style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${flagged ? C.gold : C.line}` }}
     >
       {flagged && (
         <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold" style={{ color: C.gold }}>
@@ -1018,7 +1031,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
           <a href={whatsappLink("", shareText)} target="_blank" rel="noopener noreferrer">
             <Btn variant="gold" icon={MessageCircle}>Partilhar</Btn>
           </a>
@@ -1103,7 +1116,7 @@ function Procurar({ donors, onReveal }) {
       </div>
 
       {results.length === 0 ? (
-        <div className="text-center py-16 rounded-xl" style={{ background: C.surface, border: `1px dashed ${C.line}`, color: C.muted }}>
+        <div className="text-center py-16 rounded-xl" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px dashed ${C.line}`, color: C.muted }}>
           Ninguém encontrado com estes filtros ainda.
         </div>
       ) : (
@@ -1111,7 +1124,7 @@ function Procurar({ donors, onReveal }) {
           {results.map((d) => {
             const contact = revealed[d.id];
             return (
-              <div key={d.id} className="rounded-xl p-4 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+              <div key={d.id} className="rounded-xl p-4 flex items-center gap-3" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center font-bold shrink-0 text-sm"
                   style={{ background: C.garnetSoft, color: C.garnet, fontFamily: "'JetBrains Mono', monospace" }}
@@ -1435,7 +1448,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           </div>
         </div>
 
-        <div className="text-left rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+        <div className="text-left rounded-xl p-4 mb-6" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
           <div className="flex items-center gap-2 mb-2" style={{ color: C.gold }}>
             <Send size={14} />
             <span className="text-xs font-bold uppercase tracking-wide" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1559,15 +1572,9 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
     return (
       <div className="fadeUp max-w-sm mx-auto text-center py-16">
         <Lock size={24} color={C.muted} className="mx-auto mb-4" />
-        <h2 className="text-xl font-extrabold mb-3" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+        <h2 className="text-xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
           Sem permissão
         </h2>
-        <p className="text-sm" style={{ color: C.muted }}>
-          A sua conta não está na lista de administradores. Para se tornar administrador, peça a quem
-          gere o projecto Supabase para adicionar o seu <code style={{ color: C.paper }}>user_id</code> à
-          tabela <code style={{ color: C.paper }}>admins</code> (Authentication → Users para copiar o ID,
-          depois Table Editor → admins → Insert).
-        </p>
       </div>
     );
   }
@@ -1634,7 +1641,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
             <StatCard label="Pedidos resolvidos" value={requestsResolved} tone="gold" />
           </div>
 
-          <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="rounded-xl p-4" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
             <h3 className="text-sm font-bold mb-3" style={{ color: C.paper }}>Doadores por grupo sanguíneo</h3>
             <div style={{ width: "100%", height: 220 }}>
               <ResponsiveContainer>
@@ -1649,7 +1656,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
             </div>
           </div>
 
-          <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="rounded-xl p-4" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
             <h3 className="text-sm font-bold mb-3" style={{ color: C.paper }}>Doadores por província</h3>
             {provinceData.length === 0 ? (
               <p className="text-xs" style={{ color: C.muted }}>Ainda sem dados suficientes.</p>
@@ -1673,7 +1680,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
       ) : (
         <div className="space-y-2">
           {list.map((item) => (
-            <div key={item.id} className="rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+            <div key={item.id} className="rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
               <div className="min-w-0">
                 {tab === "doadores" ? (
                   <>
@@ -1741,3 +1748,106 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
     </div>
   );
 }
+
+/* ---------- LEGAL ---------- */
+function Legal({ page, onNavigate }) {
+  const Section = ({ title, children }) => (
+    <div className="mb-6">
+      <h3 className="text-base font-bold mb-2" style={{ color: C.paper, fontFamily: "'Bricolage Grotesque', sans-serif" }}>{title}</h3>
+      <div className="text-sm leading-relaxed" style={{ color: C.muted }}>{children}</div>
+    </div>
+  );
+
+  return (
+    <div className="fadeUp max-w-2xl mx-auto">
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => onNavigate("privacidade")}
+          className="px-3 py-1.5 rounded-full text-sm font-medium"
+          style={{ background: page === "privacidade" ? C.garnetSoft : "transparent", color: page === "privacidade" ? C.garnet : C.muted }}
+        >
+          Privacidade
+        </button>
+        <button
+          onClick={() => onNavigate("termos")}
+          className="px-3 py-1.5 rounded-full text-sm font-medium"
+          style={{ background: page === "termos" ? C.garnetSoft : "transparent", color: page === "termos" ? C.garnet : C.muted }}
+        >
+          Termos de Utilização
+        </button>
+      </div>
+
+      {page === "privacidade" ? (
+        <>
+          <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>Política de Privacidade</h2>
+          <p className="text-xs mb-6" style={{ color: C.faint }}>Última actualização: Julho de 2026</p>
+
+          <Section title="O que recolhemos">
+            <p className="mb-2">Ao registar-se como doador: nome, telefone, grupo sanguíneo, WhatsApp (sim/não), província e cidade, e opcionalmente a data da última doação.</p>
+            <p className="mb-2">Ao publicar um pedido: nome do local, grupo sanguíneo necessário, província, cidade, número de unidades, urgência, telefone de contacto e notas opcionais.</p>
+            <p>Para entrar na plataforma: o seu endereço de email.</p>
+          </Section>
+
+          <Section title="Como usamos os seus dados">
+            <p className="mb-2">Os dados servem exclusivamente para ligar quem precisa de sangue a quem pode doar — mostrar pedidos urgentes a doadores compatíveis, e permitir contacto directo entre as partes.</p>
+            <p>Não vendemos nem partilhamos os seus dados com terceiros para fins publicitários. Não existe qualquer modelo de negócio por trás da Mainga — é um projecto comunitário sem fins lucrativos.</p>
+          </Section>
+
+          <Section title="Quem vê o quê">
+            <p className="mb-2">O grupo sanguíneo, disponibilidade, província e cidade de um doador são visíveis a qualquer pessoa autenticada na plataforma, para permitir a correspondência com pedidos.</p>
+            <p>O seu telefone só é revelado a outra pessoa quando ela clica explicitamente em "Revelar contacto" — essa acção fica registada (data e quem revelou) para prevenir abuso, com um limite diário de revelações por conta.</p>
+          </Section>
+
+          <Section title="Onde ficam guardados os dados">
+            <p>Os dados são guardados numa base de dados gerida pela Supabase (infra-estrutura na União Europeia). Não guardamos os dados em servidores próprios.</p>
+          </Section>
+
+          <Section title="Os seus direitos">
+            <p className="mb-2">Pode apagar o seu registo de doador a qualquer momento, directamente na página "Ser doador".</p>
+            <p>Para apagar a sua conta por completo, ou pedir uma cópia dos seus dados, contacte-nos através do email indicado no rodapé.</p>
+          </Section>
+
+          <Section title="Menores de idade">
+            <p>A doação de sangue em Angola exige idade mínima legal. A Mainga não se destina a ser usada por menores para se registarem como doadores.</p>
+          </Section>
+
+          <Section title="Contacto">
+            <p>Dúvidas sobre esta política podem ser enviadas para o email de contacto indicado no rodapé da plataforma.</p>
+          </Section>
+        </>
+      ) : (
+        <>
+          <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>Termos de Utilização</h2>
+          <p className="text-xs mb-6" style={{ color: C.faint }}>Última actualização: Julho de 2026</p>
+
+          <Section title="O que é a Mainga">
+            <p>A Mainga é uma plataforma comunitária, sem fins lucrativos, que liga pessoas que precisam de sangue a doadores voluntários em Angola. Não somos um hospital, banco de sangue, nem prestador de cuidados de saúde.</p>
+          </Section>
+
+          <Section title="O que a Mainga não faz">
+            <p className="mb-2">Não realizamos colheitas de sangue, não verificamos a compatibilidade médica entre doador e receptor, e não garantimos a veracidade de cada pedido publicado — embora existam mecanismos de aprovação por administradores e sinalização pela comunidade para reduzir abusos.</p>
+            <p>Toda a doação efectiva de sangue deve ocorrer num hospital ou banco de sangue autorizado, seguindo os protocolos médicos apropriados.</p>
+          </Section>
+
+          <Section title="Responsabilidades do utilizador">
+            <p className="mb-2">Ao usar a Mainga, compromete-se a fornecer informação verdadeira, não publicar pedidos falsos ou enganosos, e não usar os contactos obtidos na plataforma para fins diferentes de coordenar uma doação de sangue.</p>
+            <p>Contas usadas para publicar pedidos falsos, assediar outros utilizadores, ou tentar contornar os limites de segurança da plataforma podem ser suspensas sem aviso prévio.</p>
+          </Section>
+
+          <Section title="Limitação de responsabilidade">
+            <p>A Mainga é fornecida "tal como está", sem garantias de disponibilidade contínua. Não nos responsabilizamos por danos resultantes do uso da plataforma, incluindo — mas não limitado a — informação incorrecta fornecida por utilizadores, ou falhas de comunicação entre doador e receptor.</p>
+          </Section>
+
+          <Section title="Alterações a estes termos">
+            <p>Podemos actualizar estes termos à medida que a plataforma evolui. Alterações significativas serão reflectidas na data no topo desta página.</p>
+          </Section>
+
+          <Section title="Contacto">
+            <p>Para questões sobre estes termos, use o email de contacto indicado no rodapé.</p>
+          </Section>
+        </>
+      )}
+    </div>
+  );
+}
+
