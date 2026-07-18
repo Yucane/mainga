@@ -1741,4 +1741,3 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
     </div>
   );
 }
-
