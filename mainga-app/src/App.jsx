@@ -115,6 +115,7 @@ function donorFromRow(row) {
     userId: row.user_id,
     name: row.name,
     bloodType: row.blood_type,
+    age: row.age,
     whatsapp: row.whatsapp,
     diaspora: row.diaspora,
     province: row.province,
@@ -129,6 +130,7 @@ function donorToRow(donor, userId) {
     user_id: userId,
     name: donor.name,
     blood_type: donor.bloodType,
+    age: donor.age,
     whatsapp: donor.whatsapp,
     diaspora: donor.diaspora,
     province: donor.province,
@@ -170,7 +172,7 @@ function requestToRow(req, userId) {
   };
 }
 
-const DONOR_COLUMNS = "id,user_id,name,blood_type,whatsapp,diaspora,province,city,available,last_donation_date,created_at";
+const DONOR_COLUMNS = "id,user_id,name,blood_type,age,whatsapp,diaspora,province,city,available,last_donation_date,created_at";
 
 const api = {
   donors: {
@@ -1180,6 +1182,7 @@ function Procurar({ donors, onReveal }) {
 /* ---------- REGISTAR ---------- */
 function Registar({ onSubmit, existing, onDelete }) {
   const [name, setName] = useState("");
+  const [age, setAge] = useState("");
   const [bloodType, setBloodType] = useState(null);
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
@@ -1189,7 +1192,9 @@ function Registar({ onSubmit, existing, onDelete }) {
   const [available, setAvailable] = useState(true);
   const [lastDonationDate, setLastDonationDate] = useState("");
 
-  const canSubmit = name && bloodType && phone && (!inAngola || city);
+  const ageNum = Number(age);
+  const ageValid = age !== "" && ageNum >= 18 && ageNum <= 69;
+  const canSubmit = name && bloodType && phone && ageValid && (!inAngola || city);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -1198,6 +1203,7 @@ function Registar({ onSubmit, existing, onDelete }) {
     if (!canSubmit) {
       const missing = [];
       if (!name) missing.push("nome");
+      if (!ageValid) missing.push(age === "" ? "idade" : "idade entre 18 e 69 anos (exigência legal para doar sangue em Angola)");
       if (!bloodType) missing.push("grupo sanguíneo");
       if (!phone) missing.push("telefone");
       if (inAngola && !city) missing.push("cidade");
@@ -1207,6 +1213,7 @@ function Registar({ onSubmit, existing, onDelete }) {
     setError("");
     onSubmit({
       name,
+      age: ageNum,
       bloodType,
       phone,
       whatsapp,
@@ -1216,7 +1223,7 @@ function Registar({ onSubmit, existing, onDelete }) {
       available: inAngola ? available : false,
       lastDonationDate: lastDonationDate || null,
     });
-    setName(""); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
+    setName(""); setAge(""); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
   };
 
   if (existing) {
@@ -1319,9 +1326,27 @@ function Registar({ onSubmit, existing, onDelete }) {
           )}
         </Field>
 
-        <Field label="Nome completo">
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} style={inputStyle} placeholder="O teu nome" />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome completo">
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} style={inputStyle} placeholder="O teu nome" />
+          </Field>
+          <Field label="Idade">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={120}
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+              placeholder="Ex: 25"
+            />
+          </Field>
+        </div>
+        <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
+          É preciso ter entre 18 e 69 anos para doar sangue em Angola.
+        </p>
 
         <Field label="Grupo sanguíneo">
           <div className="grid grid-cols-4 gap-2">
