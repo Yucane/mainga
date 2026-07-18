@@ -757,7 +757,7 @@ export default function Mainga() {
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 font-mono" style={{ color: C.line }}>
-          build-2026-07-18-mainga-photos
+          build-2026-07-18-mainga-photos3
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             painel administrador
           </button>
@@ -783,10 +783,11 @@ export default function Mainga() {
 
 /* ---------- FEED ---------- */
 const HERO_PHOTOS = [
-  { url: "https://images.unsplash.com/photo-1536856136534-bb679c52a9aa?w=1200&q=80&auto=format&fit=crop", caption: "Cada doação começa com uma decisão simples" },
-  { url: "https://images.unsplash.com/photo-1615461065624-21b562ee5566?w=1200&q=80&auto=format&fit=crop", caption: "Alguém a acompanhar, alguém a doar" },
-  { url: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=1200&q=80&auto=format&fit=crop", caption: "Um gesto que liga pessoas" },
-  { url: "https://images.unsplash.com/photo-1542884841-9f546e727bca?w=1200&q=80&auto=format&fit=crop", caption: "Cuidado médico, todos os dias" },
+  { url: "https://images.unsplash.com/photo-1514416205405-075ab2f15964?w=1200&q=80&auto=format&fit=crop", caption: "Cuidado médico, todos os dias" },
+  { url: "https://images.unsplash.com/photo-1536064479547-7ee40b74b807?w=1200&q=80&auto=format&fit=crop", caption: "Cada doação começa com uma decisão simples" },
+  { url: "https://images.unsplash.com/photo-1678695972687-033fa0bdbac9?w=1200&q=80&auto=format&fit=crop", caption: "Profissionais de saúde ao seu lado" },
+  { url: "https://images.unsplash.com/photo-1605602517387-ec78b947335e?w=1200&q=80&auto=format&fit=crop", caption: "Um gesto que liga pessoas" },
+  { url: "https://images.unsplash.com/photo-1542884841-9f546e727bca?w=1200&q=80&auto=format&fit=crop", caption: "O momento da doação" },
 ];
 
 function HeroPhotoBanner() {
@@ -1740,3 +1741,4 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
     </div>
   );
 }
+
