@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
@@ -93,7 +94,34 @@ const authApi = {
   sendCode: (email) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: true } }),
   verifyCode: (email, token) => sbFetch("/auth/v1/verify", { method: "POST", body: { type: "email", email, token } }),
   getUser: (token) => sbFetch("/auth/v1/user", { token }),
+  refreshToken: (refreshToken) =>
+    sbFetch("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: { refresh_token: refreshToken } }),
 };
+
+/* manter a sessão guardada no telemóvel, para não pedir login sempre que reabre a app */
+const SESSION_KEY = "mainga_session";
+function persistSession(session) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    /* localStorage indisponível (ex: modo privado) — sessão só dura enquanto a aba estiver aberta */
+  }
+}
+function loadPersistedSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function clearPersistedSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* nada a fazer */
+  }
+}
 
 /* mapear entre snake_case (base de dados) e camelCase (usado na app) */
 const DONATION_INTERVAL_DAYS = 90;
@@ -360,16 +388,42 @@ export default function Mainga() {
     if (!window.location.hash || !window.location.hash.includes("access_token")) return;
     const params = new URLSearchParams(window.location.hash.slice(1));
     const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
     if (!accessToken) return;
     (async () => {
       try {
         const user = await authApi.getUser(accessToken);
-        setSession({ token: accessToken, user });
+        const newSession = { token: accessToken, refreshToken, user };
+        setSession(newSession);
+        persistSession(newSession);
         showToast("Sessão iniciada a partir do link do email.");
       } catch (err) {
         showToast(`Erro ao confirmar login: ${err.message}`, "garnet");
       } finally {
         window.history.replaceState(null, "", window.location.pathname);
+      }
+    })();
+  }, []);
+
+  // ao abrir a app, tenta restaurar uma sessão guardada no telemóvel
+  useEffect(() => {
+    const saved = loadPersistedSession();
+    if (!saved?.token) return;
+    (async () => {
+      try {
+        const user = await authApi.getUser(saved.token);
+        setSession({ ...saved, user });
+      } catch {
+        // token expirado — tenta renovar com o refresh token, se houver
+        if (!saved.refreshToken) { clearPersistedSession(); return; }
+        try {
+          const data = await authApi.refreshToken(saved.refreshToken);
+          const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
+          setSession(newSession);
+          persistSession(newSession);
+        } catch {
+          clearPersistedSession();
+        }
       }
     })();
   }, []);
@@ -438,7 +492,9 @@ export default function Mainga() {
     setAuthError("");
     try {
       const data = await authApi.verifyCode(email, code);
-      setSession({ token: data.access_token, user: data.user });
+      const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
+      setSession(newSession);
+      persistSession(newSession);
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -448,6 +504,7 @@ export default function Mainga() {
 
   const logout = () => {
     setSession(null);
+    clearPersistedSession();
     setDonors([]);
     setRequests([]);
     setView("feed");
@@ -1926,5 +1983,3 @@ function Legal({ page, onNavigate }) {
     </div>
   );
 }
-
-
