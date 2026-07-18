@@ -341,6 +341,12 @@ export default function Mainga() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 3500);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     window.scrollTo?.({ top: 0, behavior: "instant" });
@@ -643,6 +649,27 @@ export default function Mainga() {
     <div className="w-full min-h-full" style={{ background: C.bg, fontFamily: "'Inter', sans-serif", color: C.paper }}>
       {sharedStyle}
 
+      <div
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
+        style={{
+          background: C.bg,
+          opacity: showSplash ? 1 : 0,
+          pointerEvents: showSplash ? "auto" : "none",
+          transition: "opacity 0.6s ease",
+        }}
+      >
+        <span
+          className="text-3xl font-extrabold tracking-tight mb-3"
+          style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}
+        >
+          Mainga
+        </span>
+        <p className="text-base max-w-xs" style={{ color: C.paper }}>
+          Uma doação sua pode ser a diferença entre a vida e a morte de alguém.
+        </p>
+        <div className="mt-6"><PulseLine w={140} /></div>
+      </div>
+
       <header className="sticky top-0 z-20 backdrop-blur" style={{ background: "rgba(20,16,13,0.92)", borderBottom: `1px solid ${C.line}` }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -730,7 +757,7 @@ export default function Mainga() {
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 font-mono" style={{ color: C.line }}>
-          build-2026-07-18-mainga-emaillink
+          build-2026-07-18-mainga-splash
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             painel administrador
           </button>
