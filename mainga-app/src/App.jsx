@@ -91,7 +91,7 @@ async function sbFetch(path, { method = "GET", body, token, headers = {} } = {})
 }
 
 const authApi = {
-  sendCode: (email) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: true } }),
+  sendCode: (email, createUser) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: createUser } }),
   verifyCode: (email, token) => sbFetch("/auth/v1/verify", { method: "POST", body: { type: "email", email, token } }),
   getUser: (token) => sbFetch("/auth/v1/user", { token }),
   refreshToken: (refreshToken) =>
@@ -474,14 +474,19 @@ export default function Mainga() {
     api.admins.check(session.token, session.user.id).then(setIsAdmin).catch(() => setIsAdmin(false));
   }, [session]);
 
+  const [authMode, setAuthMode] = useState("entrar"); // "entrar" | "registar"
+
   const sendCode = async () => {
     setAuthLoading(true);
     setAuthError("");
     try {
-      await authApi.sendCode(email);
+      await authApi.sendCode(email, authMode === "registar");
       setAuthStep("code");
     } catch (err) {
-      setAuthError(err.message);
+      const msg = /not found|does not exist|invalid/i.test(err.message)
+        ? "Não encontrámos nenhuma conta com este email. Experimente \"Criar conta\" em vez de \"Entrar\"."
+        : err.message;
+      setAuthError(msg);
     } finally {
       setAuthLoading(false);
     }
@@ -675,6 +680,22 @@ export default function Mainga() {
 
       {authStep === "email" ? (
         <>
+          <div className="flex gap-2 mb-5 justify-center">
+            <button
+              onClick={() => setAuthMode("entrar")}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold"
+              style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
+            >
+              Entrar
+            </button>
+            <button
+              onClick={() => setAuthMode("registar")}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold"
+              style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
+            >
+              Criar conta
+            </button>
+          </div>
           <Field label="Email">
             <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
           </Field>
@@ -686,8 +707,7 @@ export default function Mainga() {
       ) : (
         <>
           <p className="text-xs mb-4" style={{ color: C.muted }}>
-            Mandámos um código para <strong style={{ color: C.paper }}>{email}</strong>. Se o email mostrar
-            um link em vez de um código, procure o texto "Token" ou os 6 dígitos dentro da mensagem.
+            Mandámos um código de 6 dígitos para <strong style={{ color: C.paper }}>{email}</strong>.
           </p>
           <Field label="Código de 6 dígitos">
             <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={inputClass} style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.3em", fontFamily: "'JetBrains Mono', monospace" }} placeholder="000000" />
