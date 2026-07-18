@@ -757,7 +757,7 @@ export default function Mainga() {
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
         Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 font-mono" style={{ color: C.line }}>
-          build-2026-07-18-mainga-splash
+          build-2026-07-18-mainga-photos
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             painel administrador
           </button>
@@ -782,6 +782,52 @@ export default function Mainga() {
 }
 
 /* ---------- FEED ---------- */
+const HERO_PHOTOS = [
+  { url: "https://images.unsplash.com/photo-1536856136534-bb679c52a9aa?w=1200&q=80&auto=format&fit=crop", caption: "Cada doação começa com uma decisão simples" },
+  { url: "https://images.unsplash.com/photo-1615461065624-21b562ee5566?w=1200&q=80&auto=format&fit=crop", caption: "Alguém a acompanhar, alguém a doar" },
+  { url: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=1200&q=80&auto=format&fit=crop", caption: "Um gesto que liga pessoas" },
+  { url: "https://images.unsplash.com/photo-1542884841-9f546e727bca?w=1200&q=80&auto=format&fit=crop", caption: "Cuidado médico, todos os dias" },
+];
+
+function HeroPhotoBanner() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setIndex((i) => (i + 1) % HERO_PHOTOS.length), 4500);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 180, background: C.surface, border: `1px solid ${C.line}` }}>
+      {HERO_PHOTOS.map((photo, i) => (
+        <img
+          key={photo.url}
+          src={photo.url}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: i === index ? 1 : 0, transition: "opacity 1s ease" }}
+        />
+      ))}
+      <div
+        className="absolute inset-0"
+        style={{ background: "linear-gradient(to top, rgba(20,16,13,0.92), rgba(20,16,13,0.15) 60%)" }}
+      />
+      <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
+        <p className="text-sm font-semibold" style={{ color: C.paper }}>{HERO_PHOTOS[index].caption}</p>
+        <div className="flex gap-1.5">
+          {HERO_PHOTOS.map((_, i) => (
+            <span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: i === index ? C.gold : "rgba(255,255,255,0.3)" }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar }) {
   const [filterProvince, setFilterProvince] = useState("Todas");
   const open = requests.filter((r) => r.status === "aberto" && r.approved);
@@ -816,6 +862,8 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
         </p>
         <div className="mt-4"><PulseLine w={160} /></div>
       </div>
+
+      <HeroPhotoBanner />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
         <StatCard label="Pedidos abertos" value={stats.openRequests} tone="garnet" />
