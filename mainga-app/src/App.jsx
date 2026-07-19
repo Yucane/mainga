@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
@@ -934,6 +935,10 @@ const HERO_PHOTOS = [
   { url: "https://images.unsplash.com/photo-1678695972687-033fa0bdbac9?w=1200&q=80&auto=format&fit=crop", caption: "Profissionais de saúde ao seu lado" },
   { url: "https://images.unsplash.com/photo-1605602517387-ec78b947335e?w=1200&q=80&auto=format&fit=crop", caption: "Um gesto que liga pessoas" },
   { url: "https://images.unsplash.com/photo-1542884841-9f546e727bca?w=1200&q=80&auto=format&fit=crop", caption: "O momento da doação" },
+  { url: "https://images.unsplash.com/photo-1691139601099-932c01ec198b?w=1200&q=80&auto=format&fit=crop", caption: "Uma equipa pronta para ajudar" },
+  { url: "https://images.unsplash.com/photo-1676286051346-ce6773753c72?w=1200&q=80&auto=format&fit=crop", caption: "Cuidado que começa desde cedo" },
+  { url: "https://images.unsplash.com/photo-1643297654416-05795d62e39c?w=1200&q=80&auto=format&fit=crop", caption: "Dedicados à sua saúde" },
+  { url: "https://images.unsplash.com/photo-1666887360921-85952a86894f?w=1200&q=80&auto=format&fit=crop", caption: "Ao seu lado, sempre" },
 ];
 
 function HeroPhotoBanner() {
@@ -1969,7 +1974,7 @@ function Legal({ page, onNavigate }) {
 
           <Section title="Visão">
             <p className="mb-2">
-              Um Angola onde nenhuma família perde alguém que ama só porque não conseguiu encontrar um
+              Uma Angola onde nenhuma família perde alguém que ama só porque não conseguiu encontrar um
               doador compatível a tempo — onde a distância entre "preciso de ajuda" e "encontrei quem me
               ajude" se mede em minutos, não em dias.
             </p>
