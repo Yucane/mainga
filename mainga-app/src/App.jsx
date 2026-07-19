@@ -5,6 +5,8 @@ import {
   Flag, Lock, ShieldAlert, Heart
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 /* ---------- design tokens ---------- */
 const C = {
@@ -1203,62 +1205,89 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
 }
 
 /* ---------- PROCURAR ---------- */
-/* posições (%) de cada província, extraídas das etiquetas do mapa oficial */
-const PROVINCE_MAP_POSITIONS = {
-  "Cabinda": { left: 3.5, top: 9.8 },
-  "Zaire": { left: 16.5, top: 17.8 },
-  "Uíge": { left: 33.5, top: 20.5 },
-  "Bengo": { left: 19.5, top: 29.7 },
-  "Luanda": { left: 8.5, top: 33.5 },
-  "Lunda Norte": { left: 55.5, top: 31.3 },
-  "Cuanza Norte": { left: 25.5, top: 35.2 },
-  "Icolo e Bengo": { left: 10.5, top: 41.1 },
-  "Malanje": { left: 42.5, top: 42.5 },
-  "Lunda Sul": { left: 65.5, top: 44.0 },
-  "Cuanza Sul": { left: 28, top: 46.3 },
-  "Moxico Leste": { left: 76, top: 56.3 },
-  "Benguela": { left: 18, top: 61.8 },
-  "Huambo": { left: 31.5, top: 61.4 },
-  "Bié": { left: 46, top: 58.8 },
-  "Moxico": { left: 65, top: 65.5 },
-  "Huíla": { left: 25, top: 74.3 },
-  "Cuando Cubango": { left: 47, top: 78.1 },
-  "Namibe": { left: 10.5, top: 80.6 },
-  "Cunene": { left: 33, top: 88.0 },
-  "Cuando": { left: 68, top: 86.5 },
+/* coordenadas aproximadas (capital de cada província) */
+const PROVINCE_COORDS = {
+  "Luanda": [-8.8368, 13.2343],
+  "Bengo": [-8.6015, 13.6763],
+  "Icolo e Bengo": [-9.2739, 13.6811],
+  "Cuanza Norte": [-9.2975, 14.9144],
+  "Cuanza Sul": [-11.2061, 13.8437],
+  "Malanje": [-9.5402, 16.3410],
+  "Lunda Norte": [-7.3961, 20.8322],
+  "Lunda Sul": [-9.6647, 20.3911],
+  "Benguela": [-12.5763, 13.4055],
+  "Huambo": [-12.7761, 15.7392],
+  "Bié": [-12.3833, 16.9333],
+  "Moxico": [-11.7833, 19.9167],
+  "Moxico Leste": [-11.5000, 22.5000],
+  "Cuando": [-15.5000, 20.0000],
+  "Cuando Cubango": [-14.6585, 17.6910],
+  "Namibe": [-15.1961, 12.1522],
+  "Huíla": [-14.9177, 13.4925],
+  "Cunene": [-17.0672, 15.7278],
+  "Cabinda": [-5.5500, 12.2000],
+  "Zaire": [-6.2686, 14.2494],
+  "Uíge": [-7.6087, 15.0611],
 };
 
-function AngolaMap({ selected, onSelect }) {
+function AngolaMap({ selected, onSelect, donors }) {
+  const mapEl = useRef(null);
+  const mapObj = useRef(null);
+  const markers = useRef([]);
+
+  useEffect(() => {
+    if (mapObj.current || !mapEl.current) return;
+    mapObj.current = L.map(mapEl.current, { center: [-12.3, 17.5], zoom: 5, zoomControl: true });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      subdomains: "abcd",
+      maxZoom: 18,
+    }).addTo(mapObj.current);
+    setTimeout(() => mapObj.current?.invalidateSize(), 200);
+    return () => { mapObj.current?.remove(); mapObj.current = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!mapObj.current) return;
+    markers.current.forEach((m) => m.remove());
+    markers.current = [];
+    Object.entries(PROVINCE_COORDS).forEach(([prov, coords]) => {
+      const count = donors.filter((d) => d.province === prov && d.available).length;
+      const isSelected = selected === prov;
+      const marker = L.circleMarker(coords, {
+        radius: isSelected ? 11 : count > 0 ? 8 : 6,
+        color: isSelected ? "#fff" : "rgba(255,255,255,0.55)",
+        weight: isSelected ? 2 : 1,
+        fillColor: isSelected ? C.garnet : count > 0 ? C.gold : "#6b6b6b",
+        fillOpacity: 0.9,
+      }).addTo(mapObj.current);
+      marker.bindTooltip(`${prov}${count > 0 ? ` · ${count} doador${count > 1 ? "es" : ""}` : ""}`, { direction: "top", opacity: 0.95 });
+      marker.on("click", () => onSelect(isSelected ? "Todas" : prov));
+      markers.current.push(marker);
+    });
+  }, [selected, donors]);
+
+  const locateMe = () => {
+    if (!navigator.geolocation || !mapObj.current) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => mapObj.current.setView([pos.coords.latitude, pos.coords.longitude], 8),
+      () => {}
+    );
+  };
+
   return (
-    <div className="rounded-xl overflow-hidden mb-4" style={{ background: "#E0E0E0", border: `1px solid ${C.line}` }}>
-      <div className="relative w-full" style={{ paddingBottom: `${(1387.85 / 1266.142) * 100}%` }}>
-        <img src="/angola-map.svg" alt="Mapa de Angola" className="absolute inset-0 w-full h-full" style={{ objectFit: "contain" }} />
-        {Object.entries(PROVINCE_MAP_POSITIONS).map(([prov, pos]) => {
-          const isSelected = selected === prov;
-          return (
-            <button
-              key={prov}
-              type="button"
-              onClick={() => onSelect(isSelected ? "Todas" : prov)}
-              title={prov}
-              className="absolute rounded-full transition-transform"
-              style={{
-                left: `${pos.left}%`,
-                top: `${pos.top}%`,
-                width: isSelected ? 16 : 11,
-                height: isSelected ? 16 : 11,
-                transform: "translate(-50%, -50%)",
-                background: isSelected ? C.garnet : "rgba(20,16,13,0.55)",
-                border: `2px solid ${isSelected ? "#fff" : "rgba(255,255,255,0.7)"}`,
-                boxShadow: isSelected ? `0 0 0 4px ${C.garnetSoft}` : "none",
-              }}
-            />
-          );
-        })}
-      </div>
+    <div className="rounded-xl overflow-hidden mb-4 relative" style={{ border: `1px solid ${C.line}` }}>
+      <div ref={mapEl} style={{ height: 320, width: "100%", background: "#1a1a1a" }} />
+      <button
+        onClick={locateMe}
+        className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1"
+        style={{ background: C.surface, color: C.paper, border: `1px solid ${C.line}`, zIndex: 1000 }}
+      >
+        <MapPin size={12} /> Perto de mim
+      </button>
       <div className="px-3 py-2.5 text-xs flex items-center justify-between" style={{ background: C.surface, color: C.muted }}>
         <span>
-          {selected === "Todas" ? "Toque numa província para filtrar" : <>Província seleccionada: <strong style={{ color: C.paper }}>{selected}</strong></>}
+          {selected === "Todas" ? "Toque num ponto do mapa para filtrar" : <>Província seleccionada: <strong style={{ color: C.paper }}>{selected}</strong></>}
         </span>
         {selected !== "Todas" && (
           <button onClick={() => onSelect("Todas")} className="font-semibold" style={{ color: C.garnet }}>Limpar</button>
@@ -1325,7 +1354,7 @@ function Procurar({ donors, onReveal }) {
         Filtra por grupo sanguíneo e localização para encontrar quem está disponível e já pode doar.
       </p>
 
-      <AngolaMap selected={province} onSelect={setProvince} />
+      <AngolaMap selected={province} onSelect={setProvince} donors={donors} />
 
       <div className="flex gap-3 mb-6 flex-wrap">
         <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass} style={{ ...inputStyle, width: "auto" }}>
