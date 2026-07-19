@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
@@ -451,8 +449,8 @@ export default function Mainga() {
     };
   }, [showToast]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [donorRows, requestRows, verifiedRows] = await Promise.all([
         api.donors.list(session?.token),
@@ -465,13 +463,21 @@ export default function Mainga() {
       (verifiedRows || []).forEach((v) => { vMap[v.user_id] = v.institution_name; });
       setVerifiedRequesters(vMap);
     } catch (err) {
-      showToast(`Erro ao carregar dados: ${err.message}`, "garnet");
+      if (!silent) showToast(`Erro ao carregar dados: ${err.message}`, "garnet");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [session, showToast]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // actualiza sozinho a cada 25s, sem mostrar o ecrã "A carregar..." outra vez
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") loadData(true);
+    }, 25000);
+    return () => clearInterval(t);
+  }, [loadData]);
 
   useEffect(() => {
     if (!session) { setIsAdmin(false); return; }
@@ -1197,6 +1203,71 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
 }
 
 /* ---------- PROCURAR ---------- */
+/* posições (%) de cada província, extraídas das etiquetas do mapa oficial */
+const PROVINCE_MAP_POSITIONS = {
+  "Cabinda": { left: 3.5, top: 9.8 },
+  "Zaire": { left: 16.5, top: 17.8 },
+  "Uíge": { left: 33.5, top: 20.5 },
+  "Bengo": { left: 19.5, top: 29.7 },
+  "Luanda": { left: 8.5, top: 33.5 },
+  "Lunda Norte": { left: 55.5, top: 31.3 },
+  "Cuanza Norte": { left: 25.5, top: 35.2 },
+  "Icolo e Bengo": { left: 10.5, top: 41.1 },
+  "Malanje": { left: 42.5, top: 42.5 },
+  "Lunda Sul": { left: 65.5, top: 44.0 },
+  "Cuanza Sul": { left: 28, top: 46.3 },
+  "Moxico Leste": { left: 76, top: 56.3 },
+  "Benguela": { left: 18, top: 61.8 },
+  "Huambo": { left: 31.5, top: 61.4 },
+  "Bié": { left: 46, top: 58.8 },
+  "Moxico": { left: 65, top: 65.5 },
+  "Huíla": { left: 25, top: 74.3 },
+  "Cuando Cubango": { left: 47, top: 78.1 },
+  "Namibe": { left: 10.5, top: 80.6 },
+  "Cunene": { left: 33, top: 88.0 },
+  "Cuando": { left: 68, top: 86.5 },
+};
+
+function AngolaMap({ selected, onSelect }) {
+  return (
+    <div className="rounded-xl overflow-hidden mb-4" style={{ background: "#E0E0E0", border: `1px solid ${C.line}` }}>
+      <div className="relative w-full" style={{ paddingBottom: `${(1387.85 / 1266.142) * 100}%` }}>
+        <img src="/angola-map.svg" alt="Mapa de Angola" className="absolute inset-0 w-full h-full" style={{ objectFit: "contain" }} />
+        {Object.entries(PROVINCE_MAP_POSITIONS).map(([prov, pos]) => {
+          const isSelected = selected === prov;
+          return (
+            <button
+              key={prov}
+              type="button"
+              onClick={() => onSelect(isSelected ? "Todas" : prov)}
+              title={prov}
+              className="absolute rounded-full transition-transform"
+              style={{
+                left: `${pos.left}%`,
+                top: `${pos.top}%`,
+                width: isSelected ? 16 : 11,
+                height: isSelected ? 16 : 11,
+                transform: "translate(-50%, -50%)",
+                background: isSelected ? C.garnet : "rgba(20,16,13,0.55)",
+                border: `2px solid ${isSelected ? "#fff" : "rgba(255,255,255,0.7)"}`,
+                boxShadow: isSelected ? `0 0 0 4px ${C.garnetSoft}` : "none",
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="px-3 py-2.5 text-xs flex items-center justify-between" style={{ background: C.surface, color: C.muted }}>
+        <span>
+          {selected === "Todas" ? "Toque numa província para filtrar" : <>Província seleccionada: <strong style={{ color: C.paper }}>{selected}</strong></>}
+        </span>
+        {selected !== "Todas" && (
+          <button onClick={() => onSelect("Todas")} className="font-semibold" style={{ color: C.garnet }}>Limpar</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Procurar({ donors, onReveal }) {
   const [type, setType] = useState("Todos");
   const [province, setProvince] = useState("Todas");
@@ -1236,12 +1307,25 @@ function Procurar({ donors, onReveal }) {
 
   return (
     <div className="fadeUp">
-      <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-        Procurar doadores
-      </h2>
+      <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 110 }}>
+        <img
+          src="https://images.unsplash.com/photo-1542884841-9f546e727bca?w=1200&q=80&auto=format&fit=crop"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ filter: "blur(3px) brightness(0.5)" }}
+        />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.95), rgba(20,16,13,0.25))" }} />
+        <div className="absolute inset-0 flex flex-col justify-end p-4">
+          <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
+            Procurar doadores
+          </h2>
+        </div>
+      </div>
       <p className="text-sm mb-6" style={{ color: C.muted }}>
         Filtra por grupo sanguíneo e localização para encontrar quem está disponível e já pode doar.
       </p>
+
+      <AngolaMap selected={province} onSelect={setProvince} />
 
       <div className="flex gap-3 mb-6 flex-wrap">
         <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass} style={{ ...inputStyle, width: "auto" }}>
