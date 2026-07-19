@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
@@ -371,6 +372,7 @@ export default function Mainga() {
   const [toast, setToast] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(() => setShowSplash(false), 3500);
@@ -407,7 +409,7 @@ export default function Mainga() {
   // ao abrir a app, tenta restaurar uma sessão guardada no telemóvel
   useEffect(() => {
     const saved = loadPersistedSession();
-    if (!saved?.token) return;
+    if (!saved?.token) { setCheckingSession(false); return; }
     (async () => {
       try {
         const user = await authApi.getUser(saved.token);
@@ -423,6 +425,8 @@ export default function Mainga() {
         } catch {
           clearPersistedSession();
         }
+      } finally {
+        setCheckingSession(false);
       }
     })();
   }, []);
@@ -474,6 +478,11 @@ export default function Mainga() {
   }, [session]);
 
   const [authMode, setAuthMode] = useState("entrar"); // "entrar" | "registar"
+
+  const signInWithGoogle = () => {
+    const redirectTo = encodeURIComponent(window.location.origin);
+    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
+  };
 
   const sendCode = async () => {
     setAuthLoading(true);
@@ -676,57 +685,93 @@ export default function Mainga() {
   );
 
   const renderAuthForm = (message) => (
-    <div className="fadeUp max-w-sm mx-auto px-2 text-center py-10">
-      <span className="text-lg font-extrabold tracking-tight block mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
-        Mainga
-      </span>
-      <p className="text-sm mt-1 mb-8" style={{ color: C.muted }}>
-        {message || "Entre com o seu email para continuar."}
-      </p>
-
-      {authStep === "email" ? (
-        <>
-          <div className="flex gap-2 mb-5 justify-center">
-            <button
-              onClick={() => setAuthMode("entrar")}
-              className="px-4 py-1.5 rounded-full text-sm font-semibold"
-              style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => setAuthMode("registar")}
-              className="px-4 py-1.5 rounded-full text-sm font-semibold"
-              style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
-            >
-              Criar conta
-            </button>
+    <div className="fadeUp max-w-sm mx-auto px-2 py-10">
+      <div className="rounded-2xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.45)" }}>
+        <div className="relative" style={{ height: 100 }}>
+          <img
+            src={HERO_PHOTOS[0].url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ filter: "blur(3px) brightness(0.55)" }}
+          />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(20,16,13,0.25), rgba(20,16,13,0.96))" }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
+              Mainga
+            </span>
+            <div className="mt-1.5"><PulseLine w={100} /></div>
           </div>
-          <Field label="Email">
-            <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
-          </Field>
-          {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
-          <Btn full onClick={sendCode} disabled={authLoading || !email}>
-            {authLoading ? "A enviar…" : "Enviar código"}
-          </Btn>
-        </>
-      ) : (
-        <>
-          <p className="text-xs mb-4" style={{ color: C.muted }}>
-            Mandámos um código de 6 dígitos para <strong style={{ color: C.paper }}>{email}</strong>.
+        </div>
+
+        <div className="px-6 py-7 text-center">
+          <p className="text-sm mb-7" style={{ color: C.muted }}>
+            {message || "Entre com o seu email para continuar."}
           </p>
-          <Field label="Código de 6 dígitos">
-            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={inputClass} style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.3em", fontFamily: "'JetBrains Mono', monospace" }} placeholder="000000" />
-          </Field>
-          {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
-          <Btn full onClick={verifyCode} disabled={authLoading || code.length !== 6}>
-            {authLoading ? "A verificar…" : "Entrar"}
-          </Btn>
-          <button onClick={() => { setAuthStep("email"); setCode(""); setAuthError(""); }} className="text-xs mt-3" style={{ color: C.faint }}>
-            Usar outro email
-          </button>
-        </>
-      )}
+
+          {authStep === "email" ? (
+            <>
+              <button
+                onClick={signInWithGoogle}
+                className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg font-semibold text-sm mb-5 transition-transform active:scale-[0.98]"
+                style={{ background: "#fff", color: "#1F1F1F" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/>
+                  <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
+                </svg>
+                Continuar com Google
+              </button>
+              <div className="flex items-center gap-3 mb-5">
+                <div style={{ flex: 1, height: 1, background: C.line }} />
+                <span className="text-xs" style={{ color: C.faint }}>ou</span>
+                <div style={{ flex: 1, height: 1, background: C.line }} />
+              </div>
+
+              <div className="flex gap-2 mb-5 justify-center">
+                <button
+                  onClick={() => setAuthMode("entrar")}
+                  className="px-4 py-1.5 rounded-full text-sm font-semibold"
+                  style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
+                >
+                  Entrar
+                </button>
+                <button
+                  onClick={() => setAuthMode("registar")}
+                  className="px-4 py-1.5 rounded-full text-sm font-semibold"
+                  style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
+                >
+                  Criar conta
+                </button>
+              </div>
+              <Field label="Email">
+                <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
+              </Field>
+              {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
+              <Btn full onClick={sendCode} disabled={authLoading || !email}>
+                {authLoading ? "A enviar…" : "Enviar código"}
+              </Btn>
+            </>
+          ) : (
+            <>
+              <p className="text-xs mb-4" style={{ color: C.muted }}>
+                Mandámos um código de 6 dígitos para <strong style={{ color: C.paper }}>{email}</strong>.
+              </p>
+              <Field label="Código de 6 dígitos">
+                <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={inputClass} style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.3em", fontFamily: "'JetBrains Mono', monospace" }} placeholder="000000" />
+              </Field>
+              {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
+              <Btn full onClick={verifyCode} disabled={authLoading || code.length !== 6}>
+                {authLoading ? "A verificar…" : "Entrar"}
+              </Btn>
+              <button onClick={() => { setAuthStep("email"); setCode(""); setAuthError(""); }} className="text-xs mt-3" style={{ color: C.faint }}>
+                Usar outro email
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 
@@ -738,8 +783,8 @@ export default function Mainga() {
         className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
         style={{
           background: C.bg,
-          opacity: showSplash ? 1 : 0,
-          pointerEvents: showSplash ? "auto" : "none",
+          opacity: (showSplash || checkingSession) ? 1 : 0,
+          pointerEvents: (showSplash || checkingSession) ? "auto" : "none",
           transition: "opacity 0.6s ease",
         }}
       >
