@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
@@ -92,7 +91,7 @@ async function sbFetch(path, { method = "GET", body, token, headers = {} } = {})
 
 const authApi = {
   sendCode: (email, createUser) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: createUser } }),
-  verifyCode: (email, token) => sbFetch("/auth/v1/verify", { method: "POST", body: { type: "email", email, token } }),
+  verifyCode: (email, token, type) => sbFetch("/auth/v1/verify", { method: "POST", body: { type, email, token } }),
   getUser: (token) => sbFetch("/auth/v1/user", { token }),
   refreshToken: (refreshToken) =>
     sbFetch("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: { refresh_token: refreshToken } }),
@@ -495,8 +494,15 @@ export default function Mainga() {
   const verifyCode = async () => {
     setAuthLoading(true);
     setAuthError("");
+    const primaryType = authMode === "registar" ? "signup" : "magiclink";
     try {
-      const data = await authApi.verifyCode(email, code);
+      let data;
+      try {
+        data = await authApi.verifyCode(email, code, primaryType);
+      } catch (firstErr) {
+        // versões diferentes do Supabase esperam tipos diferentes — tenta o tipo unificado como recurso
+        data = await authApi.verifyCode(email, code, "email");
+      }
       const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
       setSession(newSession);
       persistSession(newSession);
