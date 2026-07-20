@@ -804,7 +804,7 @@ export default function Mainga() {
           Mainga
         </span>
         <p className="text-base max-w-xs" style={{ color: C.paper }}>
-          Uma doação sua pode ser a diferença entre a vida e a morte de alguém.
+          Uma única doação de sangue pode ser a diferença entre a vida e a morte de alguém. Doe. Salve vidas.
         </p>
         <div className="mt-6"><PulseLine w={140} /></div>
       </div>
@@ -1003,11 +1003,15 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-3" style={{ color: C.gold }}>
           <Activity size={16} />
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            {stats.openRequests > 0
-              ? `${stats.openRequests} pedido${stats.openRequests > 1 ? "s" : ""} de sangue em aberto agora`
-              : "Publica agora o teu pedido ou procura por um doador compatível"}
-          </span>
+          {stats.openRequests > 0 ? (
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              {stats.openRequests} pedido{stats.openRequests > 1 ? "s" : ""} de sangue em aberto agora
+            </span>
+          ) : (
+            <span className="text-xs italic" style={{ fontFamily: "'Inter', sans-serif" }}>
+              Cada pedido aqui é uma vida real à espera de ajuda — trate este espaço com amor, empatia e verdade
+            </span>
+          )}
         </div>
         <h1
           className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
