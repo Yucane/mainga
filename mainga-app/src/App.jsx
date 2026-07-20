@@ -1013,8 +1013,8 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
           className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
           style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
         >
-          Uma bolsa de sangue pode salvar uma vida.{" "}
-          <span style={{ color: C.garnet }}>A Mainga aproxima quem precisa de quem pode doar.</span>
+          Cada doação de sangue é uma oportunidade de salvar uma vida.{" "}
+          <span style={{ color: C.garnet }}>A próxima pode depender de você.</span>
         </h1>
         <p className="text-sm max-w-xl" style={{ color: C.muted }}>
           Angola precisa de mais de <strong style={{ color: C.paper }}>360 mil doadores voluntários de sangue</strong>,
