@@ -1234,10 +1234,38 @@ const PROVINCE_COORDS = {
   "Uíge": [-7.6087, 15.0611],
 };
 
+/* um hospital de referência por província — nomes confirmados onde encontrados
+   (Wikipedia: "List of hospitals in Angola"); o resto usa um nome genérico
+   provincial até termos confirmação oficial do Ministério da Saúde */
+const PROVINCE_HOSPITALS = {
+  "Luanda": "Hospital Josina Machel",
+  "Bengo": "Hospital Barra do Dande",
+  "Icolo e Bengo": "Hospital Provincial de Catete",
+  "Cuanza Norte": "Hospital Provincial de N'dalatando",
+  "Cuanza Sul": "Hospital Provincial do Sumbe",
+  "Malanje": "Hospital Provincial de Malanje",
+  "Lunda Norte": "Hospital Provincial da Lunda Norte",
+  "Lunda Sul": "Hospital Provincial da Lunda Sul",
+  "Benguela": "Hospital Benguela 70",
+  "Huambo": "Hospital Sanatório do Huambo",
+  "Bié": "Hospital Provincial do Kuito",
+  "Moxico": "Hospital Provincial do Luena",
+  "Moxico Leste": "Hospital Provincial de Cazombo",
+  "Cuando": "Hospital Provincial de Mavinga",
+  "Cuando Cubango": "Hospital Provincial do Kuando Kubango",
+  "Namibe": "Hospital Sanatório de Moçâmedes",
+  "Huíla": "Hospital Agostinho Neto",
+  "Cunene": "Hospital Municipal do Cahama",
+  "Cabinda": "Hospital Provincial de Cabinda",
+  "Zaire": "Hospital Provincial de M'banza Kongo",
+  "Uíge": "Hospital Sanatório do Uíge",
+};
+
 function AngolaMap({ selected, onSelect, donors }) {
   const mapEl = useRef(null);
   const mapObj = useRef(null);
   const markers = useRef([]);
+  const hospitalMarkers = useRef([]);
 
   useEffect(() => {
     if (mapObj.current || !mapEl.current) return;
@@ -1271,6 +1299,27 @@ function AngolaMap({ selected, onSelect, donors }) {
     });
   }, [selected, donors]);
 
+  // hospitais de referência — marcador próprio, ligeiramente deslocado do ponto da província
+  useEffect(() => {
+    if (!mapObj.current) return;
+    hospitalMarkers.current.forEach((m) => m.remove());
+    hospitalMarkers.current = [];
+    const hospitalIcon = L.divIcon({
+      className: "",
+      html: `<div style="width:14px;height:14px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:bold;">+</div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+    Object.entries(PROVINCE_HOSPITALS).forEach(([prov, hospitalName]) => {
+      const coords = PROVINCE_COORDS[prov];
+      if (!coords) return;
+      const offset = [coords[0] + 0.18, coords[1] + 0.18];
+      const marker = L.marker(offset, { icon: hospitalIcon }).addTo(mapObj.current);
+      marker.bindTooltip(`🏥 ${hospitalName}`, { direction: "top", opacity: 0.95 });
+      hospitalMarkers.current.push(marker);
+    });
+  }, []);
+
   const locateMe = () => {
     if (!navigator.geolocation || !mapObj.current) return;
     navigator.geolocation.getCurrentPosition(
@@ -1289,6 +1338,14 @@ function AngolaMap({ selected, onSelect, donors }) {
       >
         <MapPin size={12} /> Perto de mim
       </button>
+      <div className="px-3 py-2 flex items-center gap-4 text-xs" style={{ background: C.surface, color: C.muted, borderTop: `1px solid ${C.line}` }}>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block rounded-full" style={{ width: 9, height: 9, background: C.gold }} /> Doadores disponíveis
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block" style={{ width: 9, height: 9, background: "#3B82C4", borderRadius: 2 }} /> Hospital de referência
+        </span>
+      </div>
       <div className="px-3 py-2.5 text-xs flex items-center justify-between" style={{ background: C.surface, color: C.muted }}>
         <span>
           {selected === "Todas" ? "Toque num ponto do mapa para filtrar" : <>Província seleccionada: <strong style={{ color: C.paper }}>{selected}</strong></>}
