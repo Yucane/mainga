@@ -357,7 +357,7 @@ function timeAgo(ts) {
 }
 
 /* ---------- main app ---------- */
-export default function Mainga() {
+function MaingaApp() {
   const [session, setSession] = useState(null); // { token, user }
   const [authStep, setAuthStep] = useState("email");
   const [email, setEmail] = useState("");
@@ -1190,6 +1190,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
             type="button"
             onClick={flag}
             title="Sinalizar como suspeito"
+            aria-label="Sinalizar este pedido como suspeito"
             className="p-2.5 rounded-lg transition-colors"
             style={{
               border: `1px solid ${C.line}`,
@@ -2069,7 +2070,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
                     <Btn variant="primary" onClick={() => { (tab === "doadores" ? onDeleteDonor : onDeleteRequest)(item.id); setConfirmId(null); }}>
                       Confirmar
                     </Btn>
-                    <button onClick={() => setConfirmId(null)} style={{ color: C.faint }}><X size={16} /></button>
+                    <button onClick={() => setConfirmId(null)} aria-label="Cancelar" style={{ color: C.faint }}><X size={16} /></button>
                   </>
                 ) : (
                   <button onClick={() => setConfirmId(item.id)} className="p-2 px-3 rounded-lg text-xs font-semibold" style={{ color: C.garnet, border: `1px solid ${C.line}` }}>
@@ -2231,5 +2232,55 @@ function Legal({ page, onNavigate }) {
         </>
       )}
     </div>
+  );
+}
+
+/* ---------- REDE DE SEGURANÇA CONTRA FALHAS ---------- */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Muxima/Mainga crash:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          className="w-full min-h-screen flex flex-col items-center justify-center px-6 text-center"
+          style={{ background: C.bg, color: C.paper, fontFamily: "'Inter', sans-serif" }}
+        >
+          <span className="text-xl font-extrabold mb-3" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
+            Mainga
+          </span>
+          <ShieldAlert size={32} color={C.gold} className="mb-4" />
+          <h1 className="text-lg font-bold mb-2">Algo correu mal.</h1>
+          <p className="text-sm max-w-sm mb-6" style={{ color: C.muted }}>
+            Não é o fim do mundo — só um problema técnico inesperado. Recarregue a página; se um pedido
+            era mesmo urgente, ligue directamente ao contacto partilhado, sem esperar pela app.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 rounded-lg font-semibold text-sm"
+            style={{ background: C.garnet, color: "#fff" }}
+          >
+            Recarregar página
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function Mainga() {
+  return (
+    <ErrorBoundary>
+      <MaingaApp />
+    </ErrorBoundary>
   );
 }
