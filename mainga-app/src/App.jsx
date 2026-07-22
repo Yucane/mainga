@@ -902,7 +902,7 @@ function MaingaApp() {
       </main>
 
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
-        Mainga 2026 é um projeto comunitário sem fins lucrativos, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
+        Mainga 2026 é um projeto comunitário, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
         <div className="mt-3 flex items-center gap-3 flex-wrap font-mono" style={{ color: C.line }}>
           <button onClick={() => setView("sobre")} style={{ color: C.line }} className="underline">
             sobre
@@ -2154,7 +2154,7 @@ function Legal({ page, onNavigate }) {
               ajude" se mede em minutos, não em dias.
             </p>
             <p>
-              A Mainga é um projecto comunitário, sem fins lucrativos, feito por alguém que decidiu que esta
+              A Mainga é um projecto comunitário, feito por alguém que decidiu que esta
               dor não devia repetir-se para mais ninguém.
             </p>
           </Section>
@@ -2174,7 +2174,7 @@ function Legal({ page, onNavigate }) {
 
           <Section title="Como usamos os seus dados">
             <p className="mb-2">Os dados servem exclusivamente para ligar quem precisa de sangue a quem pode doar — mostrar pedidos urgentes a doadores compatíveis, e permitir contacto directo entre as partes.</p>
-            <p>Não vendemos nem partilhamos os seus dados com terceiros para fins publicitários. Não existe qualquer modelo de negócio por trás da Mainga — é um projecto comunitário sem fins lucrativos.</p>
+            <p>Não vendemos nem partilhamos os seus dados com terceiros para fins publicitários. Não existe qualquer modelo de negócio por trás da Mainga — é um projecto comunitário.</p>
           </Section>
 
           <Section title="Quem vê o quê">
@@ -2205,7 +2205,7 @@ function Legal({ page, onNavigate }) {
           <p className="text-xs mb-6" style={{ color: C.faint }}>Última actualização: Julho de 2026</p>
 
           <Section title="O que é a Mainga">
-            <p>A Mainga é uma plataforma comunitária, sem fins lucrativos, que liga pessoas que precisam de sangue a doadores voluntários em Angola. Não somos um hospital, banco de sangue, nem prestador de cuidados de saúde.</p>
+            <p>A Mainga é uma plataforma comunitária que liga pessoas que precisam de sangue a doadores voluntários em Angola. Não somos um hospital, banco de sangue, nem prestador de cuidados de saúde.</p>
           </Section>
 
           <Section title="O que a Mainga não faz">
