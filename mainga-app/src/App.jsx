@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
   Siren, Activity, Check, X, ChevronRight, Users, Radio, Send,
-  Flag, Lock, ShieldAlert, Heart
+  Flag, Lock, ShieldAlert, Heart, Bell
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
@@ -89,6 +89,18 @@ async function sbFetch(path, { method = "GET", body, token, headers = {} } = {})
     throw new Error(msg);
   }
   return data;
+}
+
+// chave pública VAPID — identifica o nosso servidor aos serviços de notificação (Google/Apple/etc.)
+const VAPID_PUBLIC_KEY = "BILoGMAk83entCqgCtfkOEh4yr8vV3iAX5OkdgnBgUfUUA49B4R_-w95JHGlkrzCKuyCjmXNGze3V4CfFkUIaOI";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
 }
 
 const authApi = {
@@ -235,6 +247,17 @@ const api = {
   },
   revealContact: (token, donorId) =>
     sbFetch("/rest/v1/rpc/reveal_donor_contact", { method: "POST", token, body: { target_donor_id: donorId } }),
+  pushSubscriptions: {
+    upsert: (token, row) =>
+      sbFetch("/rest/v1/push_subscriptions?on_conflict=endpoint", {
+        method: "POST",
+        token,
+        body: row,
+        headers: { Prefer: "resolution=merge-duplicates" },
+      }),
+    remove: (token, endpoint) =>
+      sbFetch(`/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, { method: "DELETE", token }),
+  },
 };
 
 /* ---------- tiny UI atoms ---------- */
@@ -356,6 +379,28 @@ function timeAgo(ts) {
   return `há ${Math.floor(s / 86400)} d`;
 }
 
+/* pequeno "apito" de dois tons, sem precisar de nenhum ficheiro de áudio */
+function playCompatibleBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1175].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime + i * 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + i * 0.16 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.16 + 0.14);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.16);
+      osc.stop(ctx.currentTime + i * 0.16 + 0.15);
+    });
+    setTimeout(() => ctx.close(), 600);
+  } catch {
+    /* Web Audio indisponível — sem problema, o aviso visual continua a aparecer */
+  }
+}
+
 /* ---------- main app ---------- */
 function MaingaApp() {
   const [session, setSession] = useState(null); // { token, user }
@@ -374,6 +419,8 @@ function MaingaApp() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [checkingSession, setCheckingSession] = useState(true);
+  const knownRequestIds = useRef(null);
+  const myBloodTypeRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setShowSplash(false), 3500);
@@ -459,8 +506,26 @@ function MaingaApp() {
         api.requests.list(session?.token),
         api.verifiedRequesters.list(session?.token).catch(() => []),
       ]);
+      const mappedRequests = (requestRows || []).map(requestFromRow);
+
+      if (silent && knownRequestIds.current && myBloodTypeRef.current) {
+        const compatibleTypesForMe = BLOOD_TYPES.filter((t) => compatibleDonorTypes(t).includes(myBloodTypeRef.current));
+        const newCompatible = mappedRequests.find(
+          (r) =>
+            !knownRequestIds.current.has(r.id) &&
+            r.status === "aberto" &&
+            r.approved &&
+            compatibleTypesForMe.includes(r.bloodType)
+        );
+        if (newCompatible) {
+          playCompatibleBeep();
+          showToast(`🩸 Novo pedido de ${newCompatible.bloodType} compatível consigo, em ${newCompatible.city}!`, "gold");
+        }
+      }
+      knownRequestIds.current = new Set(mappedRequests.map((r) => r.id));
+
       setDonors((donorRows || []).map(donorFromRow));
-      setRequests((requestRows || []).map(requestFromRow));
+      setRequests(mappedRequests);
       const vMap = {};
       (verifiedRows || []).forEach((v) => { vMap[v.user_id] = v.institution_name; });
       setVerifiedRequesters(vMap);
@@ -546,6 +611,10 @@ function MaingaApp() {
     () => donors.find((d) => d.userId === session?.user?.id) || null,
     [donors, session]
   );
+
+  useEffect(() => {
+    myBloodTypeRef.current = myDonor?.bloodType || null;
+  }, [myDonor]);
 
   const addDonor = async (donor) => {
     try {
@@ -653,6 +722,44 @@ function MaingaApp() {
     } catch (err) {
       showToast(err.message, "garnet");
       return null;
+    }
+  };
+
+  const enablePushNotifications = async () => {
+    if (!session || !myDonor) {
+      showToast("Registe-se primeiro como doador para activar avisos.", "gold");
+      return;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      showToast("O seu navegador não suporta notificações push.", "garnet");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        showToast("Precisa de aceitar a permissão de notificações para activar os avisos.", "gold");
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      const json = subscription.toJSON();
+      await api.pushSubscriptions.upsert(session.token, {
+        user_id: session.user.id,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth_key: json.keys.auth,
+        blood_type: myDonor.bloodType,
+        province: myDonor.province,
+      });
+      showToast("Notificações activadas — vai receber um aviso mesmo com a app fechada.");
+    } catch (err) {
+      showToast(`Não foi possível activar: ${err.message}`, "garnet");
     }
   };
 
@@ -860,6 +967,7 @@ function MaingaApp() {
                 donors={donors}
                 stats={stats}
                 currentUserId={session?.user?.id}
+                myBloodType={myDonor?.bloodType}
                 verifiedRequesters={verifiedRequesters}
                 onCloseRequest={closeRequest}
                 onReportRequest={reportRequest}
@@ -870,7 +978,7 @@ function MaingaApp() {
             {view === "entrar" && renderAuthForm("Entre com o seu email para continuar.")}
             {view === "registar" && (
               session
-                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} />
+                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} onEnablePush={enablePushNotifications} />
                 : renderAuthForm("Entre com o seu email para se registar como doador.")
             )}
             {view === "publicar" && (
@@ -988,7 +1096,7 @@ function HeroPhotoBanner() {
   );
 }
 
-function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar }) {
+function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar }) {
   const [filterProvince, setFilterProvince] = useState("Todas");
   const open = requests.filter((r) => r.status === "aberto" && r.approved);
   const URGENCY_ORDER = { critica: 0, alta: 1, moderada: 2 };
@@ -1082,6 +1190,7 @@ function Feed({ requests, donors, stats, currentUserId, verifiedRequesters, onCl
               donors={donors}
               isOwner={r.requesterUserId === currentUserId}
               verifiedInstitution={verifiedRequesters?.[r.requesterUserId]}
+              myBloodType={myBloodType}
               onClose={() => onCloseRequest(r.id)}
               onReport={() => onReportRequest(r.id)}
             />
@@ -1113,7 +1222,7 @@ function StatCard({ label, value, tone, pulse }) {
   );
 }
 
-function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onReport }) {
+function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onClose, onReport }) {
   const [reported, setReported] = useState(false);
 
   const compatibleTypes = compatibleDonorTypes(r.bloodType);
@@ -1123,6 +1232,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
   const urgencyTone = r.urgency === "critica" ? "garnet" : r.urgency === "alta" ? "gold" : "muted";
   const shareText = `🩸 Pedido urgente de sangue (${r.bloodType}) em ${r.city}, ${r.province}. ${r.units} unidade(s) necessária(s) em ${r.place}. Contacto: ${r.contactPhone}. Partilha se puderes ajudar — Mainga`;
   const flagged = (r.reportCount || 0) >= 3;
+  const isCompatibleForMe = myBloodType && compatibleTypes.includes(myBloodType);
 
   const flag = () => {
     if (reported) return;
@@ -1133,11 +1243,16 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
   return (
     <div
       className="rounded-xl p-4 sm:p-5 fadeUp"
-      style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${flagged ? C.gold : C.line}` }}
+      style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${flagged ? C.gold : isCompatibleForMe ? C.garnet : C.line}` }}
     >
       {flagged && (
         <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold" style={{ color: C.gold }}>
           <ShieldAlert size={13} /> Sinalizado pela comunidade — em verificação
+        </div>
+      )}
+      {isCompatibleForMe && !flagged && (
+        <div className="flex items-center gap-1.5 mb-3 text-xs font-bold" style={{ color: C.garnet }}>
+          <Droplet size={13} fill={C.garnet} /> O seu tipo sanguíneo é compatível com este pedido
         </div>
       )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1182,27 +1297,35 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, onClose, onRepor
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
-          <a href={whatsappLink("", shareText)} target="_blank" rel="noopener noreferrer">
-            <Btn variant="gold" icon={MessageCircle}>Partilhar</Btn>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap justify-end">
+            <a href={`tel:${r.contactPhone}`} title="Ligar directamente">
+              <Btn variant="subtle" icon={Phone}>Ligar</Btn>
+            </a>
+            <a href={whatsappLink(r.contactPhone, `Olá! Vi o pedido de ${r.bloodType} para ${r.place} na Mainga — sou compatível e quero ajudar.`)} target="_blank" rel="noopener noreferrer">
+              <Btn variant="gold" icon={MessageCircle}>Contactar</Btn>
+            </a>
+            <button
+              type="button"
+              onClick={flag}
+              title="Sinalizar como suspeito"
+              aria-label="Sinalizar este pedido como suspeito"
+              className="p-2.5 rounded-lg transition-colors"
+              style={{
+                border: `1px solid ${C.line}`,
+                color: reported ? C.gold : C.muted,
+                background: "transparent",
+              }}
+            >
+              <Flag size={15} strokeWidth={2.4} fill={reported ? C.gold : "none"} />
+            </button>
+            {isOwner && (
+              <Btn variant="ghost" icon={Check} onClick={onClose}>Resolvido</Btn>
+            )}
+          </div>
+          <a href={whatsappLink("", shareText)} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold" style={{ color: C.faint }}>
+            ou partilhar com mais alguém →
           </a>
-          <button
-            type="button"
-            onClick={flag}
-            title="Sinalizar como suspeito"
-            aria-label="Sinalizar este pedido como suspeito"
-            className="p-2.5 rounded-lg transition-colors"
-            style={{
-              border: `1px solid ${C.line}`,
-              color: reported ? C.gold : C.muted,
-              background: "transparent",
-            }}
-          >
-            <Flag size={15} strokeWidth={2.4} fill={reported ? C.gold : "none"} />
-          </button>
-          {isOwner && (
-            <Btn variant="ghost" icon={Check} onClick={onClose}>Resolvido</Btn>
-          )}
         </div>
       </div>
     </div>
@@ -1492,7 +1615,7 @@ function Procurar({ donors, onReveal }) {
 }
 
 /* ---------- REGISTAR ---------- */
-function Registar({ onSubmit, existing, onDelete }) {
+function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [bloodType, setBloodType] = useState(null);
@@ -1569,6 +1692,17 @@ function Registar({ onSubmit, existing, onDelete }) {
             {eligible
               ? "Já podes doar sangue neste momento."
               : `Podes doar de novo a partir de ${eligibleDate.toLocaleDateString("pt-PT")}.`}
+          </div>
+        )}
+
+        {!existing.diaspora && (
+          <div className="mt-4">
+            <Btn full variant="gold" icon={Bell} onClick={onEnablePush}>
+              Avisar-me quando houver um pedido compatível
+            </Btn>
+            <p className="text-xs mt-2" style={{ color: C.faint }}>
+              Recebe um aviso no telemóvel mesmo com a app fechada, quando alguém precisar do seu tipo sanguíneo perto de si.
+            </p>
           </div>
         )}
 
