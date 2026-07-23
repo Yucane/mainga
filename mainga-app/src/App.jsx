@@ -408,6 +408,13 @@ const TR = {
     procurar_title: "Procurar doadores",
     procurar_subtitle: "Filtra por grupo sanguíneo e localização para encontrar quem está disponível e já pode doar.",
     loading: "A carregar…",
+    howit_title: "Como funciona, em 3 passos",
+    howit_1_t: "Regista-te",
+    howit_1_d: "Grupo sanguíneo, contacto e província, em menos de 2 minutos.",
+    howit_2_t: "Encontra ou publica",
+    howit_2_d: "Procura um doador compatível, ou publica um pedido urgente.",
+    howit_3_t: "Contacto directo",
+    howit_3_d: "Fala directamente com quem precisa ou pode ajudar — sem intermediários.",
   },
   en: {
     nav_feed: "Requests",
@@ -444,6 +451,13 @@ const TR = {
     procurar_title: "Find donors",
     procurar_subtitle: "Filter by blood type and location to find who is available and eligible to donate.",
     loading: "Loading…",
+    howit_title: "How it works, in 3 steps",
+    howit_1_t: "Register",
+    howit_1_d: "Blood type, contact and province, in under 2 minutes.",
+    howit_2_t: "Find or post",
+    howit_2_d: "Search for a compatible donor, or post an urgent request.",
+    howit_3_t: "Direct contact",
+    howit_3_d: "Speak directly with whoever needs or can help — no middlemen.",
   },
 };
 function t(lang, key) {
@@ -1237,6 +1251,30 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
           {" "}{t(lang, "hero_stat_note_end")}
         </p>
         <div className="mt-4"><PulseLine w={160} /></div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>1</span>
+            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_1_t")}</span>
+          </div>
+          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_1_d")}</p>
+        </div>
+        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>2</span>
+            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_2_t")}</span>
+          </div>
+          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_2_d")}</p>
+        </div>
+        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>3</span>
+            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_3_t")}</span>
+          </div>
+          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_3_d")}</p>
+        </div>
       </div>
 
       <HeroPhotoBanner />
