@@ -1464,29 +1464,56 @@ const PROVINCE_COORDS = {
 /* um hospital de referência por província — nomes confirmados onde encontrados
    (Wikipedia: "List of hospitals in Angola"); o resto usa um nome genérico
    provincial até termos confirmação oficial do Ministério da Saúde */
-const PROVINCE_HOSPITALS = {
-  "Luanda": "Hospital Josina Machel",
-  "Bengo": "Hospital Barra do Dande",
-  "Icolo e Bengo": "Hospital Provincial de Catete",
-  "Cuanza Norte": "Hospital Provincial de N'dalatando",
-  "Cuanza Sul": "Hospital Provincial do Sumbe",
-  "Malanje": "Hospital Provincial de Malanje",
-  "Lunda Norte": "Hospital Provincial da Lunda Norte",
-  "Lunda Sul": "Hospital Provincial da Lunda Sul",
-  "Benguela": "Hospital Benguela 70",
-  "Huambo": "Hospital Sanatório do Huambo",
-  "Bié": "Hospital Provincial do Kuito",
-  "Moxico": "Hospital Provincial do Luena",
-  "Moxico Leste": "Hospital Provincial de Cazombo",
-  "Cuando": "Hospital Provincial de Mavinga",
-  "Cuando Cubango": "Hospital Provincial do Kuando Kubango",
-  "Namibe": "Hospital Sanatório de Moçâmedes",
-  "Huíla": "Hospital Agostinho Neto",
-  "Cunene": "Hospital Municipal do Cahama",
-  "Cabinda": "Hospital Provincial de Cabinda",
-  "Zaire": "Hospital Provincial de M'banza Kongo",
-  "Uíge": "Hospital Sanatório do Uíge",
-};
+/* lista de hospitais — vários por província onde há confirmação real (Wikipedia:
+   "List of hospitals in Angola" / "Healthcare in Angola"); pequeno desvio de
+   coordenadas para não sobrepor marcadores na mesma cidade */
+const HOSPITALS = [
+  // Luanda — a província com mais hospitais confirmados
+  { name: "Hospital Josina Machel", province: "Luanda", coords: [-8.824, 13.2265] },
+  { name: "Hospital Américo Boavida", province: "Luanda", coords: [-8.831, 13.238] },
+  { name: "Clínica Sagrada Esperança", province: "Luanda", coords: [-8.812, 13.231] },
+  { name: "Hospital Militar Principal", province: "Luanda", coords: [-8.845, 13.221] },
+  { name: "Hospital Geral Camama", province: "Luanda", coords: [-8.905, 13.253] },
+  { name: "Hospital Geral Kilamba Kiaxi", province: "Luanda", coords: [-8.921, 13.276] },
+  { name: "Hospital do Prenda", province: "Luanda", coords: [-8.818, 13.252] },
+  { name: "Cajueiros General Hospital (Cazenga)", province: "Luanda", coords: [-8.8285, 13.2954] },
+  { name: "Lucrécia Paím Maternity Hospital", province: "Luanda", coords: [-8.815, 13.235] },
+  { name: "Clínica Multiperfil", province: "Luanda", coords: [-8.84, 13.245] },
+
+  // Benguela
+  { name: "Hospital Benguela 70", province: "Benguela", coords: PROVINCE_COORDS["Benguela"] },
+  { name: "Hospital Nossa Senhora da Paz (Cubal)", province: "Benguela", coords: [-12.617, 14.25] },
+
+  // Huambo
+  { name: "Bongo Mission Hospital", province: "Huambo", coords: PROVINCE_COORDS["Huambo"] },
+
+  // Cuando Cubango
+  { name: "Hospital Provincial do Kuando Kubango", province: "Cuando Cubango", coords: PROVINCE_COORDS["Cuando Cubango"] },
+  { name: "Hospital Municipal do Kuvango", province: "Cuando Cubango", coords: [-14.478, 16.478] },
+
+  // Lunda Norte
+  { name: "Hospital Provincial da Lunda Norte", province: "Lunda Norte", coords: PROVINCE_COORDS["Lunda Norte"] },
+  { name: "Hospital Municipal de Cafunfo", province: "Lunda Norte", coords: [-9.139, 18.55] },
+  { name: "Hospital Municipal de Lucapa", province: "Lunda Norte", coords: [-8.418, 20.744] },
+
+  // restantes províncias — referência provincial única, até termos confirmação de mais nomes
+  { name: "Hospital Barra do Dande", province: "Bengo", coords: PROVINCE_COORDS["Bengo"] },
+  { name: "Hospital Provincial de Catete", province: "Icolo e Bengo", coords: PROVINCE_COORDS["Icolo e Bengo"] },
+  { name: "Hospital Provincial de N'dalatando", province: "Cuanza Norte", coords: PROVINCE_COORDS["Cuanza Norte"] },
+  { name: "Hospital Provincial do Sumbe", province: "Cuanza Sul", coords: PROVINCE_COORDS["Cuanza Sul"] },
+  { name: "Hospital Provincial de Malanje", province: "Malanje", coords: PROVINCE_COORDS["Malanje"] },
+  { name: "Hospital Provincial da Lunda Sul", province: "Lunda Sul", coords: PROVINCE_COORDS["Lunda Sul"] },
+  { name: "Hospital Provincial do Kuito", province: "Bié", coords: PROVINCE_COORDS["Bié"] },
+  { name: "Hospital Provincial do Luena", province: "Moxico", coords: PROVINCE_COORDS["Moxico"] },
+  { name: "Hospital Provincial de Cazombo", province: "Moxico Leste", coords: PROVINCE_COORDS["Moxico Leste"] },
+  { name: "Hospital Provincial de Mavinga", province: "Cuando", coords: PROVINCE_COORDS["Cuando"] },
+  { name: "Hospital Sanatório de Moçâmedes", province: "Namibe", coords: PROVINCE_COORDS["Namibe"] },
+  { name: "Hospital Agostinho Neto", province: "Huíla", coords: PROVINCE_COORDS["Huíla"] },
+  { name: "Hospital Municipal do Cahama", province: "Cunene", coords: PROVINCE_COORDS["Cunene"] },
+  { name: "Hospital Provincial de Cabinda", province: "Cabinda", coords: PROVINCE_COORDS["Cabinda"] },
+  { name: "Hospital Provincial de M'banza Kongo", province: "Zaire", coords: PROVINCE_COORDS["Zaire"] },
+  { name: "Hospital Sanatório do Uíge", province: "Uíge", coords: PROVINCE_COORDS["Uíge"] },
+];
 
 function AngolaMap({ selected, onSelect, donors }) {
   const mapEl = useRef(null);
@@ -1526,26 +1553,33 @@ function AngolaMap({ selected, onSelect, donors }) {
     });
   }, [selected, donors]);
 
-  // hospitais de referência — marcador próprio, ligeiramente deslocado do ponto da província
+  // hospitais de referência — um marcador por hospital, com pequeno desvio para não sobrepor no mesmo local
   useEffect(() => {
     if (!mapObj.current) return;
     hospitalMarkers.current.forEach((m) => m.remove());
     hospitalMarkers.current = [];
     const hospitalIcon = L.divIcon({
       className: "",
-      html: `<div style="width:14px;height:14px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:bold;">+</div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      html: `<div style="width:12px;height:12px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:bold;">+</div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
     });
-    Object.entries(PROVINCE_HOSPITALS).forEach(([prov, hospitalName]) => {
-      const coords = PROVINCE_COORDS[prov];
-      if (!coords) return;
-      const offset = [coords[0] + 0.18, coords[1] + 0.18];
+    const seen = {};
+    HOSPITALS.forEach((h) => {
+      if (!h.coords) return;
+      const key = h.coords.join(",");
+      const n = seen[key] || 0;
+      seen[key] = n + 1;
+      // pequena espiral de desvio, para hospitais na mesma cidade não ficarem exactamente sobrepostos
+      const angle = n * 2.4;
+      const radius = n === 0 ? 0 : 0.035 + n * 0.012;
+      const offset = [h.coords[0] + 0.1 + Math.cos(angle) * radius, h.coords[1] + 0.1 + Math.sin(angle) * radius];
       const marker = L.marker(offset, { icon: hospitalIcon }).addTo(mapObj.current);
-      marker.bindTooltip(`🏥 ${hospitalName}`, { direction: "top", opacity: 0.95 });
+      marker.bindTooltip(`🏥 ${h.name}`, { direction: "top", opacity: 0.95 });
       hospitalMarkers.current.push(marker);
     });
   }, []);
+
 
   const locateMe = () => {
     if (!navigator.geolocation || !mapObj.current) return;
