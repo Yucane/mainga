@@ -371,6 +371,85 @@ function whatsappLink(phone, text) {
   return `https://wa.me/${clean.replace(/^\+/, "")}?text=${encodeURIComponent(text)}`;
 }
 
+/* ---------- traduções (PT / EN) ---------- */
+const TR = {
+  pt: {
+    nav_feed: "Pedidos",
+    nav_search: "Procurar",
+    nav_donor: "Ser doador",
+    nav_publish: "Publicar pedido",
+    nav_login: "Entrar",
+    nav_logout: "Sair",
+    hero_eyebrow_default: "Cada pedido aqui é uma vida real à espera de ajuda — trate este espaço com amor, empatia e verdade",
+    hero_title_1: "Cada doação de sangue é uma oportunidade de salvar uma vida.",
+    hero_title_2: "A próxima pode depender de você.",
+    hero_stat_note: "Angola precisa de mais de",
+    hero_stat_note_end: "doadores voluntários de sangue, mas atualmente conta com menos de metade desse número. A sua próxima doação pode salvar a vida de alguém que você ama.",
+    stat_open: "Pedidos abertos",
+    stat_critical: "Críticos agora",
+    stat_donors: "Doadores em Angola",
+    stat_provinces: "Províncias",
+    footer_text: "Mainga 2026 é um projeto comunitário, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.",
+    footer_about: "sobre",
+    footer_privacy: "privacidade",
+    footer_terms: "termos",
+    footer_admin: "painel administrador",
+    auth_login_title: "Entre com o seu email para continuar.",
+    auth_email_label: "Email",
+    auth_send_code: "Enviar código",
+    auth_sending: "A enviar…",
+    auth_signin: "Entrar",
+    auth_signup: "Criar conta",
+    auth_google: "Continuar com Google",
+    auth_or: "ou",
+    auth_code_label: "Código de 6 dígitos",
+    auth_verifying: "A verificar…",
+    auth_other_email: "Usar outro email",
+    procurar_title: "Procurar doadores",
+    procurar_subtitle: "Filtra por grupo sanguíneo e localização para encontrar quem está disponível e já pode doar.",
+    loading: "A carregar…",
+  },
+  en: {
+    nav_feed: "Requests",
+    nav_search: "Search",
+    nav_donor: "Become a donor",
+    nav_publish: "Post a request",
+    nav_login: "Log in",
+    nav_logout: "Log out",
+    hero_eyebrow_default: "Every request here is a real life waiting for help — treat this space with love, empathy and honesty",
+    hero_title_1: "Every blood donation is a chance to save a life.",
+    hero_title_2: "The next one could depend on you.",
+    hero_stat_note: "Angola needs more than",
+    hero_stat_note_end: "voluntary blood donors, but currently has less than half that number. Your next donation could save the life of someone you love.",
+    stat_open: "Open requests",
+    stat_critical: "Critical now",
+    stat_donors: "Donors in Angola",
+    stat_provinces: "Provinces",
+    footer_text: "Mainga 2026 is a community project, built to connect people who need blood with voluntary donors.",
+    footer_about: "about",
+    footer_privacy: "privacy",
+    footer_terms: "terms",
+    footer_admin: "admin panel",
+    auth_login_title: "Sign in with your email to continue.",
+    auth_email_label: "Email",
+    auth_send_code: "Send code",
+    auth_sending: "Sending…",
+    auth_signin: "Sign in",
+    auth_signup: "Create account",
+    auth_google: "Continue with Google",
+    auth_or: "or",
+    auth_code_label: "6-digit code",
+    auth_verifying: "Verifying…",
+    auth_other_email: "Use another email",
+    procurar_title: "Find donors",
+    procurar_subtitle: "Filter by blood type and location to find who is available and eligible to donate.",
+    loading: "Loading…",
+  },
+};
+function t(lang, key) {
+  return TR[lang]?.[key] ?? TR.pt[key] ?? key;
+}
+
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return "agora mesmo";
@@ -420,6 +499,12 @@ function MaingaApp() {
   const [showSplash, setShowSplash] = useState(true);
   const [checkingSession, setCheckingSession] = useState(true);
   const knownRequestIds = useRef(null);
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("mainga_lang") || "pt"; } catch { return "pt"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("mainga_lang", lang); } catch { /* indisponível — sem problema */ }
+  }, [lang]);
   const myBloodTypeRef = useRef(null);
 
   useEffect(() => {
@@ -821,7 +906,7 @@ function MaingaApp() {
 
         <div className="px-6 py-7 text-center">
           <p className="text-sm mb-7" style={{ color: C.muted }}>
-            {message || "Entre com o seu email para continuar."}
+            {message || t(lang, "auth_login_title")}
           </p>
 
           {authStep === "email" ? (
@@ -837,11 +922,11 @@ function MaingaApp() {
                   <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/>
                   <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
                 </svg>
-                Continuar com Google
+                {t(lang, "auth_google")}
               </button>
               <div className="flex items-center gap-3 mb-5">
                 <div style={{ flex: 1, height: 1, background: C.line }} />
-                <span className="text-xs" style={{ color: C.faint }}>ou</span>
+                <span className="text-xs" style={{ color: C.faint }}>{t(lang, "auth_or")}</span>
                 <div style={{ flex: 1, height: 1, background: C.line }} />
               </div>
 
@@ -851,22 +936,22 @@ function MaingaApp() {
                   className="px-4 py-1.5 rounded-full text-sm font-semibold"
                   style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
                 >
-                  Entrar
+                  {t(lang, "auth_signin")}
                 </button>
                 <button
                   onClick={() => setAuthMode("registar")}
                   className="px-4 py-1.5 rounded-full text-sm font-semibold"
                   style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
                 >
-                  Criar conta
+                  {t(lang, "auth_signup")}
                 </button>
               </div>
-              <Field label="Email">
+              <Field label={t(lang, "auth_email_label")}>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
               </Field>
               {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
               <Btn full onClick={sendCode} disabled={authLoading || !email}>
-                {authLoading ? "A enviar…" : "Enviar código"}
+                {authLoading ? t(lang, "auth_sending") : t(lang, "auth_send_code")}
               </Btn>
             </>
           ) : (
@@ -874,15 +959,15 @@ function MaingaApp() {
               <p className="text-xs mb-4" style={{ color: C.muted }}>
                 Mandámos um código de 6 dígitos para <strong style={{ color: C.paper }}>{email}</strong>.
               </p>
-              <Field label="Código de 6 dígitos">
+              <Field label={t(lang, "auth_code_label")}>
                 <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={inputClass} style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.3em", fontFamily: "'JetBrains Mono', monospace" }} placeholder="000000" />
               </Field>
               {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
               <Btn full onClick={verifyCode} disabled={authLoading || code.length !== 6}>
-                {authLoading ? "A verificar…" : "Entrar"}
+                {authLoading ? t(lang, "auth_verifying") : t(lang, "auth_signin")}
               </Btn>
               <button onClick={() => { setAuthStep("email"); setCode(""); setAuthError(""); }} className="text-xs mt-3" style={{ color: C.faint }}>
-                Usar outro email
+                {t(lang, "auth_other_email")}
               </button>
             </>
           )}
@@ -919,16 +1004,16 @@ function MaingaApp() {
       <header className="sticky top-0 z-20 backdrop-blur" style={{ background: "rgba(20,16,13,0.92)", borderBottom: `1px solid ${C.line}` }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
+            <button onClick={() => setView("feed")} className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
               Mainga
-            </span>
+            </button>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
             {[
-              ["feed", "Pedidos", Siren],
-              ["procurar", "Procurar", Search],
-              ["registar", "Ser doador", UserPlus],
-              ["publicar", "Publicar pedido", Radio],
+              ["feed", t(lang, "nav_feed"), Siren],
+              ["procurar", t(lang, "nav_search"), Search],
+              ["registar", t(lang, "nav_donor"), UserPlus],
+              ["publicar", t(lang, "nav_publish"), Radio],
             ].map(([id, label, Icon]) => (
               <button
                 key={id}
@@ -945,8 +1030,24 @@ function MaingaApp() {
               className="text-xs px-2 font-semibold"
               style={{ color: session ? C.faint : C.garnet }}
             >
-              {session ? "Sair" : "Entrar"}
+              {session ? t(lang, "nav_logout") : t(lang, "nav_login")}
             </button>
+            <div className="flex items-center gap-0.5 ml-1 pl-2" style={{ borderLeft: `1px solid ${C.line}` }}>
+              <button
+                onClick={() => setLang("pt")}
+                className="text-xs px-1.5 py-1 rounded font-bold"
+                style={{ color: lang === "pt" ? C.paper : C.faint }}
+              >
+                PT
+              </button>
+              <button
+                onClick={() => setLang("en")}
+                className="text-xs px-1.5 py-1 rounded font-bold"
+                style={{ color: lang === "en" ? C.paper : C.faint }}
+              >
+                EN
+              </button>
+            </div>
           </nav>
         </div>
       </header>
@@ -957,7 +1058,7 @@ function MaingaApp() {
             <div style={{ animation: "pulseDot 1.2s ease-in-out infinite" }}>
               <PulseLine w={80} />
             </div>
-            <span className="text-sm">A carregar…</span>
+            <span className="text-sm">{t(lang, "loading")}</span>
           </div>
         ) : (
           <>
@@ -972,9 +1073,10 @@ function MaingaApp() {
                 onCloseRequest={closeRequest}
                 onReportRequest={reportRequest}
                 goPublicar={() => setView("publicar")}
+                lang={lang}
               />
             )}
-            {view === "procurar" && <Procurar donors={donors} onReveal={revealContact} />}
+            {view === "procurar" && <Procurar donors={donors} onReveal={revealContact} lang={lang} />}
             {view === "entrar" && renderAuthForm("Entre com o seu email para continuar.")}
             {view === "registar" && (
               session
@@ -1010,19 +1112,19 @@ function MaingaApp() {
       </main>
 
       <footer className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-xs" style={{ color: C.faint }}>
-        Mainga 2026 é um projeto comunitário, desenvolvido para conectar pessoas que necessitam de sangue a doadores voluntários.
+        {t(lang, "footer_text")}
         <div className="mt-3 flex items-center gap-3 flex-wrap font-mono" style={{ color: C.line }}>
           <button onClick={() => setView("sobre")} style={{ color: C.line }} className="underline">
-            sobre
+            {t(lang, "footer_about")}
           </button>
           <button onClick={() => setView("privacidade")} style={{ color: C.line }} className="underline">
-            privacidade
+            {t(lang, "footer_privacy")}
           </button>
           <button onClick={() => setView("termos")} style={{ color: C.line }} className="underline">
-            termos
+            {t(lang, "footer_terms")}
           </button>
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
-            painel administrador
+            {t(lang, "footer_admin")}
           </button>
         </div>
       </footer>
@@ -1055,6 +1157,8 @@ const HERO_PHOTOS = [
   { url: "https://images.unsplash.com/photo-1676286051346-ce6773753c72?w=1200&q=80&auto=format&fit=crop", caption: "Cuidado que começa desde cedo" },
   { url: "https://images.unsplash.com/photo-1643297654416-05795d62e39c?w=1200&q=80&auto=format&fit=crop", caption: "Dedicados à sua saúde" },
   { url: "https://images.unsplash.com/photo-1666887360921-85952a86894f?w=1200&q=80&auto=format&fit=crop", caption: "Ao seu lado, sempre" },
+  { url: "https://images.unsplash.com/photo-1672655412906-8e10ba6ee373?w=1200&q=80&auto=format&fit=crop", caption: "Compromisso com quem cuida" },
+  { url: "https://images.unsplash.com/photo-1576669801945-7a346954da5a?w=1200&q=80&auto=format&fit=crop", caption: "Uma conversa, uma vida ajudada" },
 ];
 
 function HeroPhotoBanner() {
@@ -1096,7 +1200,7 @@ function HeroPhotoBanner() {
   );
 }
 
-function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar }) {
+function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar, lang }) {
   const [filterProvince, setFilterProvince] = useState("Todas");
   const open = requests.filter((r) => r.status === "aberto" && r.approved);
   const URGENCY_ORDER = { critica: 0, alta: 1, moderada: 2 };
@@ -1117,7 +1221,7 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
             </span>
           ) : (
             <span className="text-xs italic" style={{ fontFamily: "'Inter', sans-serif" }}>
-              Cada pedido aqui é uma vida real à espera de ajuda — trate este espaço com amor, empatia e verdade
+              {t(lang, "hero_eyebrow_default")}
             </span>
           )}
         </div>
@@ -1125,13 +1229,12 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
           className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
           style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
         >
-          Cada doação de sangue é uma oportunidade de salvar uma vida.{" "}
-          <span style={{ color: C.garnet }}>A próxima pode depender de você.</span>
+          {t(lang, "hero_title_1")}{" "}
+          <span style={{ color: C.garnet }}>{t(lang, "hero_title_2")}</span>
         </h1>
         <p className="text-sm max-w-xl" style={{ color: C.muted }}>
-          Angola precisa de mais de <strong style={{ color: C.paper }}>360 mil doadores voluntários de sangue</strong>,
-          mas atualmente conta com menos de metade desse número. A sua próxima doação pode salvar a vida
-          de alguém que você ama.
+          {t(lang, "hero_stat_note")} <strong style={{ color: C.paper }}>360 {lang === "en" ? "thousand voluntary blood donors" : "mil doadores voluntários de sangue"}</strong>,
+          {" "}{t(lang, "hero_stat_note_end")}
         </p>
         <div className="mt-4"><PulseLine w={160} /></div>
       </div>
@@ -1139,10 +1242,10 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
       <HeroPhotoBanner />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-        <StatCard label="Pedidos abertos" value={stats.openRequests} tone="garnet" />
-        {stats.criticalOpen > 0 && <StatCard label="Críticos agora" value={stats.criticalOpen} tone="gold" pulse />}
-        <StatCard label="Doadores em Angola" value={stats.totalDonors} tone="green" />
-        <StatCard label="Províncias" value={Object.keys(stats.byProvince).length} tone="gold" />
+        <StatCard label={t(lang, "stat_open")} value={stats.openRequests} tone="garnet" />
+        {stats.criticalOpen > 0 && <StatCard label={t(lang, "stat_critical")} value={stats.criticalOpen} tone="gold" pulse />}
+        <StatCard label={t(lang, "stat_donors")} value={stats.totalDonors} tone="green" />
+        <StatCard label={t(lang, "stat_provinces")} value={Object.keys(stats.byProvince).length} tone="gold" />
       </div>
       <p className="text-xs mb-6" style={{ color: C.faint, minHeight: "1em" }}>
         {stats.diasporaCount > 0
@@ -1482,7 +1585,7 @@ function AngolaMap({ selected, onSelect, donors }) {
   );
 }
 
-function Procurar({ donors, onReveal }) {
+function Procurar({ donors, onReveal, lang }) {
   const [type, setType] = useState("Todos");
   const [province, setProvince] = useState("Todas");
   const [revealed, setRevealed] = useState({});
@@ -1531,12 +1634,12 @@ function Procurar({ donors, onReveal }) {
         <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.95), rgba(20,16,13,0.25))" }} />
         <div className="absolute inset-0 flex flex-col justify-end p-4">
           <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
-            Procurar doadores
+            {t(lang, "procurar_title")}
           </h2>
         </div>
       </div>
       <p className="text-sm mb-6" style={{ color: C.muted }}>
-        Filtra por grupo sanguíneo e localização para encontrar quem está disponível e já pode doar.
+        {t(lang, "procurar_subtitle")}
       </p>
 
       <AngolaMap selected={province} onSelect={setProvince} donors={donors} />
