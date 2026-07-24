@@ -912,7 +912,7 @@ function MaingaApp() {
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(20,16,13,0.25), rgba(20,16,13,0.96))" }} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-2xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
-              Mainga
+              Mainga <span style={{ fontSize: "0.7em" }} aria-hidden="true">🇦🇴</span>
             </span>
             <div className="mt-1.5"><PulseLine w={100} /></div>
           </div>
@@ -1007,7 +1007,7 @@ function MaingaApp() {
           className="text-3xl font-extrabold tracking-tight mb-3"
           style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}
         >
-          Mainga
+          Mainga <span style={{ fontSize: "0.7em" }} aria-hidden="true">🇦🇴</span>
         </span>
         <p className="text-base max-w-xs" style={{ color: C.paper }}>
           Uma única doação de sangue pode ser a diferença entre a vida e a morte de alguém. Doe. Salve vidas.
@@ -1018,8 +1018,8 @@ function MaingaApp() {
       <header className="sticky top-0 z-20 backdrop-blur" style={{ background: "rgba(20,16,13,0.92)", borderBottom: `1px solid ${C.line}` }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <button onClick={() => setView("feed")} className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
-              Mainga
+            <button onClick={() => setView("feed")} className="flex items-center gap-2 text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
+              Mainga <span style={{ fontSize: "0.85rem" }} aria-hidden="true">🇦🇴</span>
             </button>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
