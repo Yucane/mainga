@@ -157,6 +157,7 @@ function donorFromRow(row) {
     name: row.name,
     bloodType: row.blood_type,
     age: row.age,
+    sex: row.sex,
     whatsapp: row.whatsapp,
     diaspora: row.diaspora,
     province: row.province,
@@ -172,6 +173,7 @@ function donorToRow(donor, userId) {
     name: donor.name,
     blood_type: donor.bloodType,
     age: donor.age,
+    sex: donor.sex,
     whatsapp: donor.whatsapp,
     diaspora: donor.diaspora,
     province: donor.province,
@@ -213,7 +215,7 @@ function requestToRow(req, userId) {
   };
 }
 
-const DONOR_COLUMNS = "id,user_id,name,blood_type,age,whatsapp,diaspora,province,city,available,last_donation_date,created_at";
+const DONOR_COLUMNS = "id,user_id,name,blood_type,age,sex,whatsapp,diaspora,province,city,available,last_donation_date,created_at";
 
 const api = {
   donors: {
@@ -1793,6 +1795,7 @@ function Procurar({ donors, onReveal, lang }) {
 function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
+  const [sex, setSex] = useState(null);
   const [bloodType, setBloodType] = useState(null);
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
@@ -1824,6 +1827,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
     onSubmit({
       name,
       age: ageNum,
+      sex,
       bloodType,
       phone,
       whatsapp,
@@ -1833,7 +1837,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
       available: inAngola ? available : false,
       lastDonationDate: lastDonationDate || null,
     });
-    setName(""); setAge(""); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
+    setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
   };
 
   if (existing) {
@@ -1968,6 +1972,26 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
         <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
           É preciso ter entre 18 e 69 anos para doar sangue em Angola.
         </p>
+
+        <Field label="Sexo (opcional)">
+          <div className="grid grid-cols-2 gap-2">
+            {[["feminino", "Feminino"], ["masculino", "Masculino"]].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setSex(sex === val ? null : val)}
+                className="py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                style={{
+                  border: `1px solid ${sex === val ? C.garnet : C.line}`,
+                  background: sex === val ? C.garnetSoft : "transparent",
+                  color: sex === val ? C.garnet : C.muted,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
 
         <Field label="Grupo sanguíneo">
           <div className="grid grid-cols-4 gap-2">
