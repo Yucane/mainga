@@ -2004,6 +2004,9 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
         <Field label="Telefone">
           <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} style={inputStyle} placeholder={inAngola ? "+244 9XX XXX XXX" : "com indicativo do país"} />
         </Field>
+        <p className="text-xs -mt-3 mb-2" style={{ color: C.gold }}>
+          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos) — sem isso, o WhatsApp não abre a conversa correctamente. Útil também para angolanos na diáspora que conheçam alguém à procura de sangue.
+        </p>
         <p className="text-xs -mt-3 mb-4 flex items-start gap-1.5" style={{ color: C.faint }}>
           <Lock size={13} className="shrink-0 mt-0.5" /> Protegido — só é mostrado a quem estiver
           autenticado e clicar em "revelar contacto", com limite diário de segurança.
@@ -2205,6 +2208,9 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
         <Field label="Telefone de contacto">
           <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputClass} style={inputStyle} placeholder="+244 9XX XXX XXX" />
         </Field>
+        <p className="text-xs -mt-3 mb-2" style={{ color: C.gold }}>
+          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos) — sem isso, quem quiser ajudar pelo WhatsApp não consegue abrir a conversa.
+        </p>
         <p className="text-[11px] -mt-3 mb-4" style={{ color: C.faint }}>
           Máximo de {RATE_LIMIT_MAX} pedidos por número em 24 horas, para travar spam.
         </p>
