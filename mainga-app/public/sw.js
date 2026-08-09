@@ -1,4 +1,4 @@
-const CACHE_NAME = "mainga-shell-v1";
+const CACHE_NAME = "mainga-shell-v2";
 const SHELL_FILES = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -19,10 +19,13 @@ self.addEventListener("activate", (event) => {
 
 // Rede primeiro (dados sempre frescos quando há ligação); usa a cópia
 // guardada só se a rede falhar (ex: sem internet momentaneamente).
+// IMPORTANTE: só intervém em pedidos do PRÓPRIO site — fontes, fotos e
+// mapas de fora ficam a cargo do browser, tal como sempre (evita conflitos
+// com a Política de Segurança de Conteúdo, que trata "fetch" e "carregar
+// imagem/fonte" como coisas diferentes).
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  // nunca guardar em cache chamadas à API do Supabase — têm de ser sempre em tempo real
-  if (event.request.url.includes("supabase.co")) return;
+  if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(event.request)
