@@ -1096,7 +1096,7 @@ function MaingaApp() {
             {view === "entrar" && renderAuthForm("Entre com o seu email para continuar.")}
             {view === "registar" && (
               session
-                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} onEnablePush={enablePushNotifications} />
+                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} onEnablePush={enablePushNotifications} showToast={showToast} />
                 : renderAuthForm("Entre com o seu email para se registar como doador.")
             )}
             {view === "publicar" && (
@@ -1501,6 +1501,60 @@ const PROVINCE_COORDS = {
   "Uíge": [-7.6087, 15.0611],
 };
 
+/* encontra a província mais próxima de uma coordenada (distância em linha recta) */
+function findNearestProvince(lat, lng) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const [prov, [plat, plng]] of Object.entries(PROVINCE_COORDS)) {
+    const d = Math.hypot(lat - plat, lng - plng);
+    if (d < bestDist) {
+      bestDist = d;
+      best = prov;
+    }
+  }
+  return best;
+}
+
+/* botão "usar a minha localização actual", tal como nas apps de táxi */
+function UseMyLocationButton({ onFound, showToast }) {
+  const [loading, setLoading] = useState(false);
+  const handleClick = () => {
+    if (!navigator.geolocation) {
+      showToast?.("O seu navegador não suporta localização.", "garnet");
+      return;
+    }
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const prov = findNearestProvince(pos.coords.latitude, pos.coords.longitude);
+        setLoading(false);
+        if (prov) {
+          onFound(prov);
+          showToast?.(`Localização detectada: ${prov}`);
+        } else {
+          showToast?.("Não foi possível determinar a província.", "garnet");
+        }
+      },
+      () => {
+        setLoading(false);
+        showToast?.("Não foi possível aceder à localização — verifique as permissões.", "garnet");
+      }
+    );
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className="text-xs font-semibold flex items-center gap-1.5 mb-3"
+      style={{ color: C.gold }}
+    >
+      <MapPin size={13} />
+      {loading ? "A localizar…" : "Usar a minha localização actual?"}
+    </button>
+  );
+}
+
 /* um hospital de referência por província — nomes confirmados onde encontrados
    (Wikipedia: "List of hospitals in Angola"); o resto usa um nome genérico
    provincial até termos confirmação oficial do Ministério da Saúde */
@@ -1792,7 +1846,7 @@ function Procurar({ donors, onReveal, lang }) {
 }
 
 /* ---------- REGISTAR ---------- */
-function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
+function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState(null);
@@ -2019,6 +2073,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush }) {
 
         {inAngola && (
           <>
+            <UseMyLocationButton showToast={showToast} onFound={(prov) => setProvince(prov)} />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Província">
                 <select value={province} onChange={(e) => setProvince(e.target.value)} className={inputClass} style={inputStyle}>
@@ -2181,6 +2236,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           </div>
         </Field>
 
+        <UseMyLocationButton showToast={showToast} onFound={(prov) => setProvince(prov)} />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Província">
             <select value={province} onChange={(e) => setProvince(e.target.value)} className={inputClass} style={inputStyle}>
