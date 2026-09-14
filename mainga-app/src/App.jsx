@@ -91,7 +91,7 @@ async function sbFetch(path, { method = "GET", body, token, headers = {} } = {})
   return data;
 }
 
-// chave pública VAPID — identifica o nosso servidor aos serviços de notificação (Google/Apple/etc.)
+// chave pública VAPID: identifica o nosso servidor aos serviços de notificação (Google/Apple/etc.)
 const VAPID_PUBLIC_KEY = "BILoGMAk83entCqgCtfkOEh4yr8vV3iAX5OkdgnBgUfUUA49B4R_-w95JHGlkrzCKuyCjmXNGze3V4CfFkUIaOI";
 
 function urlBase64ToUint8Array(base64String) {
@@ -117,7 +117,7 @@ function persistSession(session) {
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch {
-    /* localStorage indisponível (ex: modo privado) — sessão só dura enquanto a aba estiver aberta */
+    /* localStorage indisponível (ex: modo privado). Sessão só dura enquanto a aba estiver aberta */
   }
 }
 function loadPersistedSession() {
@@ -383,7 +383,7 @@ const TR = {
     nav_publish: "Publicar pedido",
     nav_login: "Entrar",
     nav_logout: "Sair",
-    hero_eyebrow_default: "Cada pedido aqui é uma vida real à espera de ajuda — trate este espaço com amor, empatia e verdade",
+    hero_eyebrow_default: "Cada pedido aqui é uma vida real à espera de ajuda. Trate este espaço com amor, empatia e verdade",
     hero_title_1: "Cada doação de sangue é uma oportunidade de salvar uma vida.",
     hero_title_2: "A próxima pode depender de você.",
     hero_stat_note: "Angola precisa de mais de",
@@ -417,7 +417,7 @@ const TR = {
     howit_2_t: "Encontra ou publica",
     howit_2_d: "Procura um doador compatível, ou publica um pedido urgente.",
     howit_3_t: "Contacto directo",
-    howit_3_d: "Fala directamente com quem precisa ou pode ajudar — sem intermediários.",
+    howit_3_d: "Fala directamente com quem precisa ou pode ajudar, sem intermediários.",
   },
   en: {
     nav_feed: "Requests",
@@ -426,7 +426,7 @@ const TR = {
     nav_publish: "Post a request",
     nav_login: "Log in",
     nav_logout: "Log out",
-    hero_eyebrow_default: "Every request here is a real life waiting for help — treat this space with love, empathy and honesty",
+    hero_eyebrow_default: "Every request here is a real life waiting for help. Treat this space with love, empathy and honesty",
     hero_title_1: "Every blood donation is a chance to save a life.",
     hero_title_2: "The next one could depend on you.",
     hero_stat_note: "Angola needs more than",
@@ -460,7 +460,7 @@ const TR = {
     howit_2_t: "Find or post",
     howit_2_d: "Search for a compatible donor, or post an urgent request.",
     howit_3_t: "Direct contact",
-    howit_3_d: "Speak directly with whoever needs or can help — no middlemen.",
+    howit_3_d: "Speak directly with whoever needs or can help, no middlemen.",
   },
 };
 function t(lang, key) {
@@ -493,7 +493,7 @@ function playCompatibleBeep() {
     });
     setTimeout(() => ctx.close(), 600);
   } catch {
-    /* Web Audio indisponível — sem problema, o aviso visual continua a aparecer */
+    /* Web Audio indisponível. Sem problema, o aviso visual continua a aparecer */
   }
 }
 
@@ -520,14 +520,14 @@ function MaingaApp() {
     try { return localStorage.getItem("mainga_lang") || "pt"; } catch { return "pt"; }
   });
   useEffect(() => {
-    try { localStorage.setItem("mainga_lang", lang); } catch { /* indisponível — sem problema */ }
+    try { localStorage.setItem("mainga_lang", lang); } catch { /* indisponível, sem problema */ }
   }, [lang]);
   const [userRole, setUserRole] = useState(() => {
     try { return localStorage.getItem("mainga_role") || null; } catch { return null; }
   });
   const chooseRole = (role) => {
     setUserRole(role);
-    try { localStorage.setItem("mainga_role", role); } catch { /* indisponível — sem problema */ }
+    try { localStorage.setItem("mainga_role", role); } catch { /* indisponível, sem problema */ }
     setView(role === "doador" ? "registar" : "publicar");
   };
   const myBloodTypeRef = useRef(null);
@@ -573,7 +573,7 @@ function MaingaApp() {
         const user = await authApi.getUser(saved.token);
         setSession({ ...saved, user });
       } catch {
-        // token expirado — tenta renovar com o refresh token, se houver
+        // token expirado, tenta renovar com o refresh token, se houver
         if (!saved.refreshToken) { clearPersistedSession(); return; }
         try {
           const data = await authApi.refreshToken(saved.refreshToken);
@@ -693,7 +693,7 @@ function MaingaApp() {
       try {
         data = await authApi.verifyCode(email, code, primaryType);
       } catch (firstErr) {
-        // versões diferentes do Supabase esperam tipos diferentes — tenta o tipo unificado como recurso
+        // versões diferentes do Supabase esperam tipos diferentes, tenta o tipo unificado como recurso
         data = await authApi.verifyCode(email, code, "email");
       }
       const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
@@ -785,7 +785,7 @@ function MaingaApp() {
     try {
       await api.reports.insert(session.token, id, session.user.id);
       setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, reportCount: (r.reportCount || 0) + 1 } : r)));
-      showToast("Obrigado — vamos rever este pedido.", "gold");
+      showToast("Obrigado. Vamos rever este pedido.", "gold");
     } catch (err) {
       showToast(`Erro: ${err.message}`, "garnet");
     }
@@ -805,7 +805,7 @@ function MaingaApp() {
     try {
       await api.requests.approve(session.token, id);
       setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, approved: true } : r)));
-      showToast("Pedido aprovado — já está visível no feed.");
+      showToast("Pedido aprovado. Já está visível no feed.");
     } catch (err) {
       showToast(`Erro: ${err.message}`, "garnet");
     }
@@ -867,7 +867,7 @@ function MaingaApp() {
         blood_type: myDonor.bloodType,
         province: myDonor.province,
       });
-      showToast("Notificações activadas — vai receber um aviso mesmo com a app fechada.");
+      showToast("Notificações activadas. Vai receber um aviso mesmo com a app fechada.");
     } catch (err) {
       showToast(`Não foi possível activar: ${err.message}`, "garnet");
     }
@@ -1433,7 +1433,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
     (d) => compatibleTypes.includes(d.bloodType) && d.province === r.province && d.available && donorIsEligible(d)
   );
   const urgencyTone = r.urgency === "critica" ? "garnet" : r.urgency === "alta" ? "gold" : "muted";
-  const shareText = `🩸 Pedido urgente de sangue (${r.bloodType}) em ${r.city}, ${r.province}. ${r.units} unidade(s) necessária(s) em ${r.place}. Contacto: ${r.contactPhone}. Partilha se puderes ajudar — Mainga`;
+  const shareText = `🩸 Pedido urgente de sangue (${r.bloodType}) em ${r.city}, ${r.province}. ${r.units} unidade(s) necessária(s) em ${r.place}. Contacto: ${r.contactPhone}. Partilha se puderes ajudar. Mainga`;
   const flagged = (r.reportCount || 0) >= 3;
   const isCompatibleForMe = myBloodType && compatibleTypes.includes(myBloodType);
 
@@ -1450,7 +1450,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
     >
       {flagged && (
         <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold" style={{ color: C.gold }}>
-          <ShieldAlert size={13} /> Sinalizado pela comunidade — em verificação
+          <ShieldAlert size={13} /> Sinalizado pela comunidade. Em verificação
         </div>
       )}
       {isCompatibleForMe && !flagged && (
@@ -1493,7 +1493,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
             </div>
             <div className="text-sm" style={{ color: C.paper }}>
               {r.units} unidade{r.units > 1 ? "s" : ""} necessária{r.units > 1 ? "s" : ""}
-              {r.notes ? ` — ${r.notes}` : ""}
+              {r.notes ? `. ${r.notes}` : ""}
             </div>
             <div className="text-xs mt-1.5" style={{ color: C.green }}>
               {matches.length} doador{matches.length !== 1 ? "es" : ""} compatíve{matches.length !== 1 ? "is" : ""} na província
@@ -1505,7 +1505,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
             <a href={`tel:${r.contactPhone}`} title="Ligar directamente">
               <Btn variant="subtle" icon={Phone}>Ligar</Btn>
             </a>
-            <a href={whatsappLink(r.contactPhone, `Olá! Vi o pedido de ${r.bloodType} para ${r.place} na Mainga — sou compatível e quero ajudar.`)} target="_blank" rel="noopener noreferrer">
+            <a href={whatsappLink(r.contactPhone, `Olá! Vi o pedido de ${r.bloodType} para ${r.place} na Mainga. Sou compatível e quero ajudar.`)} target="_blank" rel="noopener noreferrer">
               <Btn variant="gold" icon={MessageCircle}>Contactar</Btn>
             </a>
             <button
@@ -1597,7 +1597,7 @@ function UseMyLocationButton({ onFound, showToast }) {
       },
       () => {
         setLoading(false);
-        showToast?.("Não foi possível aceder à localização — verifique as permissões.", "garnet");
+        showToast?.("Não foi possível aceder à localização. Verifique as permissões.", "garnet");
       }
     );
   };
@@ -1615,10 +1615,10 @@ function UseMyLocationButton({ onFound, showToast }) {
   );
 }
 
-/* um hospital de referência por província — nomes confirmados onde encontrados
+/* um hospital de referência por província. Nomes confirmados onde encontrados
    (Wikipedia: "List of hospitals in Angola"); o resto usa um nome genérico
    provincial até termos confirmação oficial do Ministério da Saúde */
-/* lista de hospitais — vários por província onde há confirmação real (Wikipedia:
+/* lista de hospitais: vários por província onde há confirmação real (Wikipedia:
    "List of hospitals in Angola" / "Healthcare in Angola"); pequeno desvio de
    coordenadas para não sobrepor marcadores na mesma cidade */
 const HOSPITALS = [
@@ -2045,7 +2045,7 @@ function AngolaMap({ selected, onSelect, donors }) {
     });
   }, [selected, donors]);
 
-  // hospitais de referência — um marcador por hospital, distribuído em espiral
+  // hospitais de referência: um marcador por hospital, distribuído em espiral
   // à volta do centro da província (padrão "girassol", mais compacto e uniforme
   // que um desvio aleatório, mesmo com dezenas de hospitais na mesma província)
   useEffect(() => {
@@ -2146,7 +2146,7 @@ function Procurar({ donors, onReveal, lang }) {
       setCopied(donorId);
       setTimeout(() => setCopied(null), 2000);
     } catch {
-      /* clipboard indisponível — sem problema, o número já está visível */
+      /* clipboard indisponível, sem problema, o número já está visível */
     }
   };
 
@@ -2220,7 +2220,7 @@ function Procurar({ donors, onReveal, lang }) {
                         <Phone size={11} /> Ligar
                       </a>
                       {contact.whatsapp && (
-                        <a href={whatsappLink(contact.phone, "Olá! Encontrei o seu contacto no Mainga — precisamos de um doador de sangue.")} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 font-semibold" style={{ color: C.gold }}>
+                        <a href={whatsappLink(contact.phone, "Olá! Encontrei o seu contacto no Mainga. Precisamos de um doador de sangue.")} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 font-semibold" style={{ color: C.gold }}>
                           <MessageCircle size={11} /> WhatsApp
                         </a>
                       )}
@@ -2308,7 +2308,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
         {existing.diaspora ? (
           <p className="text-sm" style={{ color: C.muted }}>
             Grupo {existing.bloodType} · registado como apoiante na diáspora. Não apareces nas
-            correspondências automáticas — mas podes continuar a partilhar pedidos e a espalhar a Mainga.
+            correspondências automáticas. Mas podes continuar a partilhar pedidos e a espalhar a Mainga.
           </p>
         ) : (
           <p className="text-sm" style={{ color: C.muted }}>
@@ -2399,8 +2399,8 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
           </div>
           {!inAngola && (
             <p className="text-xs mt-2" style={{ color: C.faint }}>
-              A doação exige presença física, por isso não entras nas correspondências automáticas —
-              mas o teu registo ajuda a mostrar o alcance da comunidade e podes partilhar pedidos.
+              A doação exige presença física, por isso não entras nas correspondências automáticas.
+              Mesmo assim, o teu registo ajuda a mostrar o alcance da comunidade e podes partilhar pedidos.
             </p>
           )}
         </Field>
@@ -2459,10 +2459,10 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
           <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} style={inputStyle} placeholder={inAngola ? "+244 9XX XXX XXX" : "com indicativo do país"} />
         </Field>
         <p className="text-xs -mt-3 mb-2" style={{ color: C.gold }}>
-          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos) — sem isso, o WhatsApp não abre a conversa correctamente. Útil também para angolanos na diáspora que conheçam alguém à procura de sangue.
+          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos). Sem isso, o WhatsApp não abre a conversa correctamente. Útil também para angolanos na diáspora que conheçam alguém à procura de sangue.
         </p>
         <p className="text-xs -mt-3 mb-4 flex items-start gap-1.5" style={{ color: C.faint }}>
-          <Lock size={13} className="shrink-0 mt-0.5" /> Protegido — só é mostrado a quem estiver
+          <Lock size={13} className="shrink-0 mt-0.5" /> Protegido. Só é mostrado a quem estiver
           autenticado e clicar em "revelar contacto", com limite diário de segurança.
         </p>
 
@@ -2552,7 +2552,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
   };
 
   if (posted) {
-    const shareText = `🩸 Pedido urgente de sangue (${posted.bloodType}) em ${posted.city}, ${posted.province}. ${posted.units} unidade(s) necessária(s) em ${posted.place}. Contacto: ${posted.contactPhone}. Partilha se puderes ajudar — Mainga`;
+    const shareText = `🩸 Pedido urgente de sangue (${posted.bloodType}) em ${posted.city}, ${posted.province}. ${posted.units} unidade(s) necessária(s) em ${posted.place}. Contacto: ${posted.contactPhone}. Partilha se puderes ajudar. Mainga`;
     return (
       <div className="fadeUp max-w-lg mx-auto text-center py-10">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: C.garnetSoft }}>
@@ -2562,7 +2562,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           Pedido publicado
         </h2>
         <p className="text-sm mb-1" style={{ color: C.muted }}>
-          Enviado — fica visível a todos assim que um administrador o rever e aprovar (costuma ser
+          Enviado. Fica visível a todos assim que um administrador o rever e aprovar (costuma ser
           rápido). Já pode partilhar o link no WhatsApp entretanto.
         </p>
         <p className="text-sm mb-6" style={{ color: C.green }}>
@@ -2573,7 +2573,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           <Check size={20} color={C.garnet} className="shrink-0" />
           <div className="text-xs" style={{ color: C.paper }}>
             Como está ligado à sua conta, só o senhor consegue marcar este pedido como resolvido mais
-            tarde — vai aparecer o botão "Resolvido" neste cartão quando o vir no feed.
+            tarde. Vai aparecer o botão "Resolvido" neste cartão quando o vir no feed.
           </div>
         </div>
 
@@ -2586,7 +2586,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           </div>
           {matches.length === 0 ? (
             <p className="text-xs" style={{ color: C.muted }}>
-              Ainda não há doadores registados com este perfil nesta província — partilha o pedido para alcançar mais gente.
+              Ainda não há doadores registados com este perfil nesta província. Partilha o pedido para alcançar mais gente.
             </p>
           ) : (
             <ul className="space-y-1.5">
@@ -2601,7 +2601,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
             </ul>
           )}
           <p className="text-[11px] mt-3" style={{ color: C.faint }}>
-            Envio real por SMS/WhatsApp requer ligação a um serviço externo (ex: Africa's Talking, WhatsApp Business API) — ainda não activado neste protótipo.
+            Envio real por SMS/WhatsApp requer ligação a um serviço externo (ex: Africa's Talking, WhatsApp Business API), ainda não activado neste protótipo.
           </p>
         </div>
 
@@ -2621,7 +2621,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
         Publicar pedido urgente
       </h2>
       <p className="text-sm mb-6" style={{ color: C.muted }}>
-        Hospital, clínica ou família — qualquer pessoa pode publicar uma necessidade.
+        Hospital, clínica ou família: qualquer pessoa pode publicar uma necessidade.
       </p>
 
       <div>
@@ -2711,9 +2711,9 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           </Field>
           <Field label="Urgência">
             <select value={urgency} onChange={(e) => setUrgency(e.target.value)} className={inputClass} style={inputStyle}>
-              <option value="critica">Crítica — agora</option>
-              <option value="alta">Alta — hoje</option>
-              <option value="moderada">Moderada — esta semana</option>
+              <option value="critica">Crítica: agora</option>
+              <option value="alta">Alta: hoje</option>
+              <option value="moderada">Moderada: esta semana</option>
             </select>
           </Field>
         </div>
@@ -2722,7 +2722,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
           <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className={inputClass} style={inputStyle} placeholder="+244 9XX XXX XXX" />
         </Field>
         <p className="text-xs -mt-3 mb-2" style={{ color: C.gold }}>
-          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos) — sem isso, quem quiser ajudar pelo WhatsApp não consegue abrir a conversa.
+          Coloque sempre o indicativo do país antes do número (ex: <strong>+244</strong> Angola, <strong>+351</strong> Portugal, <strong>+49</strong> Alemanha, <strong>+31</strong> Países Baixos). Sem isso, quem quiser ajudar pelo WhatsApp não consegue abrir a conversa.
         </p>
         <p className="text-[11px] -mt-3 mb-4" style={{ color: C.faint }}>
           Máximo de {RATE_LIMIT_MAX} pedidos por número em 24 horas, para travar spam.
@@ -2793,7 +2793,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
         Painel administrador
       </h2>
       <p className="text-sm mb-6" style={{ color: C.muted }}>
-        Gestão directa de registos — usar com cuidado, esta acção não tem "desfazer". Para apagar tudo
+        Gestão directa de registos. Usar com cuidado: esta acção não tem "desfazer". Para apagar tudo
         de uma vez, use o Table Editor no painel do Supabase.
       </p>
 
@@ -2981,7 +2981,7 @@ function Legal({ page, onNavigate }) {
           <Section title="Porque existe a Mainga">
             <p className="mb-2">
               A Mainga nasceu de uma perda que não devia ter acontecido. Um mês, a filha de uma amiga
-              da família perdeu a vida — não por falta de tratamento, não por falta de esperança, mas por falta de um
+              da família perdeu a vida. Não por falta de tratamento, nem de esperança. Por falta de um
               doador de sangue a tempo. Quando a família precisou, a única forma de procurar ajuda foi
               publicar no estado do WhatsApp e esperar que alguém visse, partilhasse, e chegasse a tempo.
             </p>
@@ -2994,7 +2994,7 @@ function Legal({ page, onNavigate }) {
           <Section title="Missão">
             <p>
               Ligar, de forma rápida e directa, quem precisa urgentemente de sangue a doadores voluntários
-              em Angola — sem depender de correntes de WhatsApp, sem precisar de conhecer alguém famoso, e
+              em Angola. Sem depender de correntes de WhatsApp, sem precisar de conhecer alguém famoso, e
               sem custos para ninguém.
             </p>
           </Section>
@@ -3002,7 +3002,7 @@ function Legal({ page, onNavigate }) {
           <Section title="Visão">
             <p className="mb-2">
               Uma Angola onde nenhuma família perde alguém que ama só porque não conseguiu encontrar um
-              doador compatível a tempo — onde a distância entre "preciso de ajuda" e "encontrei quem me
+              doador compatível a tempo. Onde a distância entre "preciso de ajuda" e "encontrei quem me
               ajude" se mede em minutos, não em dias.
             </p>
             <p>
@@ -3025,13 +3025,13 @@ function Legal({ page, onNavigate }) {
           </Section>
 
           <Section title="Como usamos os seus dados">
-            <p className="mb-2">Os dados servem exclusivamente para ligar quem precisa de sangue a quem pode doar — mostrar pedidos urgentes a doadores compatíveis, e permitir contacto directo entre as partes.</p>
-            <p>Não vendemos nem partilhamos os seus dados com terceiros para fins publicitários. Não existe qualquer modelo de negócio por trás da Mainga — é um projecto comunitário.</p>
+            <p className="mb-2">Os dados servem exclusivamente para ligar quem precisa de sangue a quem pode doar: mostrar pedidos urgentes a doadores compatíveis, e permitir contacto directo entre as partes.</p>
+            <p>Não vendemos nem partilhamos os seus dados com terceiros para fins publicitários. Não existe qualquer modelo de negócio por trás da Mainga. É um projecto comunitário.</p>
           </Section>
 
           <Section title="Quem vê o quê">
             <p className="mb-2">O grupo sanguíneo, disponibilidade, província e cidade de um doador são visíveis a qualquer pessoa autenticada na plataforma, para permitir a correspondência com pedidos.</p>
-            <p>O seu telefone só é revelado a outra pessoa quando ela clica explicitamente em "Revelar contacto" — essa acção fica registada (data e quem revelou) para prevenir abuso, com um limite diário de revelações por conta.</p>
+            <p>O seu telefone só é revelado a outra pessoa quando ela clica explicitamente em "Revelar contacto". Essa acção fica registada (data e quem revelou) para prevenir abuso, com um limite diário de revelações por conta.</p>
           </Section>
 
           <Section title="Onde ficam guardados os dados">
@@ -3061,7 +3061,7 @@ function Legal({ page, onNavigate }) {
           </Section>
 
           <Section title="O que a Mainga não faz">
-            <p className="mb-2">Não realizamos colheitas de sangue, não verificamos a compatibilidade médica entre doador e receptor, e não garantimos a veracidade de cada pedido publicado — embora existam mecanismos de aprovação por administradores e sinalização pela comunidade para reduzir abusos.</p>
+            <p className="mb-2">Não realizamos colheitas de sangue, não verificamos a compatibilidade médica entre doador e receptor, e não garantimos a veracidade de cada pedido publicado. Existem, no entanto, mecanismos de aprovação por administradores e sinalização pela comunidade para reduzir abusos.</p>
             <p>Toda a doação efectiva de sangue deve ocorrer num hospital ou banco de sangue autorizado, seguindo os protocolos médicos apropriados.</p>
           </Section>
 
@@ -3071,7 +3071,7 @@ function Legal({ page, onNavigate }) {
           </Section>
 
           <Section title="Limitação de responsabilidade">
-            <p>A Mainga é fornecida "tal como está", sem garantias de disponibilidade contínua. Não nos responsabilizamos por danos resultantes do uso da plataforma, incluindo — mas não limitado a — informação incorrecta fornecida por utilizadores, ou falhas de comunicação entre doador e receptor.</p>
+            <p>A Mainga é fornecida "tal como está", sem garantias de disponibilidade contínua. Não nos responsabilizamos por danos resultantes do uso da plataforma, incluindo (mas não limitado a) informação incorrecta fornecida por utilizadores, ou falhas de comunicação entre doador e receptor.</p>
           </Section>
 
           <Section title="Alterações a estes termos">
@@ -3112,7 +3112,7 @@ class ErrorBoundary extends React.Component {
           <ShieldAlert size={32} color={C.gold} className="mb-4" />
           <h1 className="text-lg font-bold mb-2">Algo correu mal.</h1>
           <p className="text-sm max-w-sm mb-6" style={{ color: C.muted }}>
-            Não é o fim do mundo — só um problema técnico inesperado. Recarregue a página; se um pedido
+            Não é o fim do mundo. Só um problema técnico inesperado. Recarregue a página; se um pedido
             era mesmo urgente, ligue directamente ao contacto partilhado, sem esperar pela app.
           </p>
           <button
