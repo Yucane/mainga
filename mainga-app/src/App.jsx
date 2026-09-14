@@ -2280,6 +2280,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   const [inAngola, setInAngola] = useState(true);
   const [province, setProvince] = useState("Luanda");
   const [city, setCity] = useState("");
+  const [cityMode, setCityMode] = useState("lista"); // "lista" | "outro"
   const [available, setAvailable] = useState(true);
   const [lastDonationDate, setLastDonationDate] = useState("");
 
@@ -2510,17 +2511,28 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
                 </select>
               </Field>
               <Field label="Município / cidade">
-                <input
-                  list="municipios-registar"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className={inputClass}
-                  style={inputStyle}
-                  placeholder="Escreva para procurar…"
-                />
-                <datalist id="municipios-registar">
-                  {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m} value={m} />)}
-                </datalist>
+                {cityMode === "lista" ? (
+                  <select
+                    value={city}
+                    onChange={(e) => {
+                      if (e.target.value === "__outro__") { setCityMode("outro"); setCity(""); }
+                      else setCity(e.target.value);
+                    }}
+                    className={inputClass}
+                    style={inputStyle}
+                  >
+                    <option value="">Escolha…</option>
+                    {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m}>{m}</option>)}
+                    <option value="__outro__">Outro</option>
+                  </select>
+                ) : (
+                  <div>
+                    <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
+                    <button type="button" onClick={() => { setCityMode("lista"); setCity(""); }} className="text-xs font-semibold mt-1.5" style={{ color: C.gold }}>
+                      ← Escolher da lista
+                    </button>
+                  </div>
+                )}
               </Field>
             </div>
 
@@ -2554,9 +2566,11 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
 /* ---------- PUBLICAR ---------- */
 function Publicar({ donors, onSubmit, onDone, showToast }) {
   const [place, setPlace] = useState("");
+  const [placeMode, setPlaceMode] = useState("lista"); // "lista" | "outro"
   const [bloodType, setBloodType] = useState(null);
   const [province, setProvince] = useState("Luanda");
   const [city, setCity] = useState("");
+  const [cityMode, setCityMode] = useState("lista"); // "lista" | "outro"
   const [units, setUnits] = useState(1);
   const [urgency, setUrgency] = useState("alta");
   const [contactPhone, setContactPhone] = useState("");
@@ -2678,7 +2692,7 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
                 setProvince(e.target.value);
                 // limpa a escolha de hospital se já não pertencer à nova província
                 const stillValid = HOSPITALS.some((h) => h.name === place && h.province === e.target.value);
-                if (!stillValid) setPlace("");
+                if (!stillValid) { setPlace(""); setPlaceMode("lista"); }
                 setCity("");
                 setCityMode("lista");
               }}
@@ -2689,35 +2703,80 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
             </select>
           </Field>
           <Field label="Município / cidade">
-            <input
-              list="municipios-publicar"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className={inputClass}
-              style={inputStyle}
-              placeholder="Escreva para procurar…"
-            />
-            <datalist id="municipios-publicar">
-              {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m} value={m} />)}
-            </datalist>
+            {cityMode === "lista" ? (
+              <select
+                value={city}
+                onChange={(e) => {
+                  if (e.target.value === "__outro__") { setCityMode("outro"); setCity(""); }
+                  else setCity(e.target.value);
+                }}
+                className={inputClass}
+                style={inputStyle}
+              >
+                <option value="">Escolha…</option>
+                {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m}>{m}</option>)}
+                <option value="__outro__">Outro</option>
+              </select>
+            ) : (
+              <div>
+                <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
+                <button type="button" onClick={() => { setCityMode("lista"); setCity(""); }} className="text-xs font-semibold mt-1.5" style={{ color: C.gold }}>
+                  ← Escolher da lista
+                </button>
+              </div>
+            )}
           </Field>
         </div>
 
         <Field label="Hospital / local">
-          <input
-            list="hospitais-publicar"
-            value={place}
-            onChange={(e) => setPlace(e.target.value)}
-            className={inputClass}
-            style={inputStyle}
-            placeholder="Escreva para procurar…"
-          />
-          <datalist id="hospitais-publicar">
-            {hospitalOptions
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((h) => <option key={h.name} value={h.name} />)}
-          </datalist>
+          {placeMode === "lista" ? (
+            <select
+              value={place}
+              onChange={(e) => {
+                if (e.target.value === "__outro__") {
+                  setPlaceMode("outro");
+                  setPlace("");
+                } else {
+                  setPlace(e.target.value);
+                }
+              }}
+              className={inputClass}
+              style={inputStyle}
+            >
+              <option value="">
+                {hospitalOptions.length === 0
+                  ? "Nenhum hospital listado nesta província ainda"
+                  : hospitalsInMunicipio.length > 0
+                    ? `Escolha um hospital em ${city}…`
+                    : `Escolha um hospital em ${province}…`}
+              </option>
+              {hospitalOptions
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((h) => (
+                  <option key={h.name} value={h.name}>{h.name}</option>
+                ))}
+              <option value="__outro__">Outro (não está na lista)</option>
+            </select>
+          ) : (
+            <div>
+              <input
+                value={place}
+                onChange={(e) => setPlace(e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+                placeholder="Escreva o nome do hospital ou local"
+              />
+              <button
+                type="button"
+                onClick={() => { setPlaceMode("lista"); setPlace(""); }}
+                className="text-xs font-semibold mt-1.5"
+                style={{ color: C.gold }}
+              >
+                ← Escolher da lista
+              </button>
+            </div>
+          )}
         </Field>
         <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
           {hospitalsInMunicipio.length > 0
@@ -3164,6 +3223,7 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
+
 
 
 
