@@ -2008,27 +2008,27 @@ const HOSPITALS = [
 ];
 
 const MUNICIPIOS_BY_PROVINCE = {
-  "Bengo": ["Ambriz", "Bula Atumba", "Dande", "Muxaluando", "Pango Aluquém", "Quibaxe"],
+  "Bengo": ["Ambriz", "Bula Atumba", "Dande", "Dembos", "Muxaluando", "Nambuangongo", "Pango Aluquém", "Quibaxe"],
   "Benguela": ["Balombo", "Baía Farta", "Benguela", "Bocoio", "Caimbambo", "Catumbela", "Chongorói", "Cubal", "Dombe Grande", "Ganda", "Lobito"],
-  "Bié": ["Andulo", "Camacupa", "Catabola", "Chicala", "Chinguar", "Chitembo", "Cuemba", "Cuito", "Cunhinga", "Mumbué", "Nharêa"],
-  "Cabinda": ["Belize", "Buco Zau", "Cabinda", "Cacongo", "Liambo", "Massabi"],
+  "Bié": ["Andulo", "Camacupa", "Catabola", "Chicala", "Chinguar", "Chitembo", "Cuemba", "Cuito", "Cunhinga", "Cuíto", "Mumbué", "Nharea", "Nharêa"],
+  "Cabinda": ["Belize", "Buco Zau", "Buco-Zau", "Cabinda", "Cacongo", "Liambo", "Massabi"],
   "Cuando": ["Cuito Cuanavale", "Dirico", "Mavinga", "Rivungo"],
   "Cuando Cubango": ["Calai", "Cuangar", "Cuchi", "Menongue", "Nancova"],
-  "Cuanza Norte": ["Ambaca", "Cambambe", "Cazengo", "Golungo Alto", "Lucala", "Ngonguembo", "Quiculungo", "Samba Cajú"],
-  "Cuanza Sul": ["Boa Entrada", "Calulo", "Cassongue", "Conda", "Ebo", "Gabela", "Mussende", "Porto Amboim", "Quibala", "Quilenda", "Seles", "Sumbe", "Waku Kungo"],
+  "Cuanza Norte": ["Ambaca", "Banga", "Bolongongo", "Cambambe", "Cazengo", "Golungo Alto", "Gonguembo", "Lucala", "Ngonguembo", "Quiculungo", "Samba Caju", "Samba Cajú"],
+  "Cuanza Sul": ["Amboim", "Boa Entrada", "Calulo", "Cassongue", "Cela", "Conda", "Ebo", "Gabela", "Libolo", "Mussende", "Porto Amboim", "Quibala", "Quilenda", "Seles", "Sumbe", "Waku Kungo"],
   "Cunene": ["Cafima", "Cahama", "Chissuata", "Chitado", "Cuanhama", "Curoca", "Cuvelai", "Humbe", "Mupa", "Namacunde", "Naulila", "Nehone", "Ombadja"],
-  "Huambo": ["Alto Hama", "Bailundo", "Cachiungo", "Caála", "Chicala Choloanga", "Chinjenje", "Ecunha", "Huambo", "Londuimbali", "Longonjo", "Mungo", "Ucuma"],
-  "Huíla": ["Caconda", "Cacula", "Capelongo", "Capunda Cavilongo", "Chibia", "Chicomba", "Chipindo", "Chituto", "Cuvango", "Gambos", "Hoque", "Humpata", "Jamba Mineira", "Lubango", "Matala", "Palanca", "Quilengues", "Quipungo", "Viti Vivali"],
-  "Icolo e Bengo": ["Catete", "Quiçama"],
-  "Luanda": ["Belas", "Cacuaco", "Camama", "Cazenga", "Hoji Ya Henda", "Ingombota", "Maianga", "Mulenvos", "Talatona", "Viana"],
-  "Lunda Norte": ["Cambulo", "Caungula", "Chitato", "Cuango", "Dundo", "Lucapa", "Xá Muteba"],
+  "Huambo": ["Alto Hama", "Bailundo", "Cachiungo", "Caála", "Chicala Choloanga", "Chicala-Choloanga", "Chinjenje", "Ecunha", "Huambo", "Londuimbali", "Longonjo", "Mungo", "Ucuma"],
+  "Huíla": ["Caconda", "Cacula", "Caluquembe", "Capelongo", "Capunda Cavilongo", "Chiange", "Chibia", "Chicomba", "Chipindo", "Chituto", "Cuvango", "Gambos", "Hoque", "Humpata", "Jamba", "Jamba Mineira", "Lubango", "Matala", "Palanca", "Quilengues", "Quipungo", "Viti Vivali"],
+  "Icolo e Bengo": ["Bom Jesus", "Cabiri", "Cabo Ledo", "Calumbo", "Catete", "Quiçama", "Sequele"],
+  "Luanda": ["Belas", "Cacuaco", "Camama", "Cazenga", "Hoji-ya-Henda", "Ingombota", "Kilamba", "Kilamba Kiaxi", "Maianga", "Mulenvos", "Mussulo", "Rangel", "Samba", "Sambizanga", "Talatona", "Viana"],
+  "Lunda Norte": ["Cambulo", "Capenda-Camulemba", "Caungula", "Chitato", "Cuango", "Cuílo", "Dundo", "Lubalo", "Lucapa", "Lóvua", "Xá Muteba", "Xá-Muteba"],
   "Lunda Sul": ["Cacolo", "Cassengo", "Dala", "Muconda", "Saurimo"],
-  "Malanje": ["Caculama", "Cacuso", "Cahombo", "Calandula", "Cambundi Catembo", "Cangandala", "Kiwaba Nzoji", "Kunda Dya Baze", "Luquembo", "Marimba", "Massango", "Quela", "Quirima", "Quêssua"],
+  "Malanje": ["Caculama", "Cacuso", "Cahombo", "Calandula", "Cambundi Catembo", "Cambundi-Catembo", "Cangandala", "Caombo", "Cuaba Nzoji", "Cunda-Dia-Baze", "Kiwaba Nzoji", "Kunda Dya Baze", "Luquembo", "Malanje", "Marimba", "Massango", "Mucari", "Quela", "Quirima", "Quêssua"],
   "Moxico": ["Alto Cuito", "Camanongue", "Cangamba", "Luena", "Lumbala Nguimbo", "Lutembo", "Léua"],
   "Moxico Leste": ["Cameia", "Cazombo", "Luacano", "Luau"],
-  "Namibe": ["Bibala", "Camucuio", "Moçâmedes", "Sacomar", "Tômbwa", "Virei"],
-  "Uíge": ["Bembe", "Bungo", "Damba", "Lucunga", "Maquela Do Zombo", "Mucaba", "Negage", "Nova Esperança", "Puri", "Quimbele", "Sanza Pombo", "Songo", "Uíge"],
-  "Zaire": ["Cuimba", "Mbanza Kongo", "Nzeto", "Nóqui", "Soyo", "Tomboco"],
+  "Namibe": ["Bibala", "Camucuio", "Moçâmedes", "Sacomar", "Tômbua", "Tômbwa", "Virei"],
+  "Uíge": ["Alto Cauale", "Ambuíla", "Bembe", "Buengas", "Bungo", "Damba", "Lucunga", "Maquela Do Zombo", "Milunga", "Mucaba", "Negage", "Nova Esperança", "Puri", "Quimbele", "Quitexe", "Sanza Pombo", "Songo", "Uíge", "Zombo"],
+  "Zaire": ["Cuimba", "Mabanza Congo", "Mbanza Kongo", "Nezeto", "Nzeto", "Nóqui", "Soio", "Soyo", "Tomboco"],
 };
 
 function AngolaMap({ selected, onSelect, donors }) {
@@ -2280,7 +2280,6 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   const [inAngola, setInAngola] = useState(true);
   const [province, setProvince] = useState("Luanda");
   const [city, setCity] = useState("");
-  const [cityMode, setCityMode] = useState("lista"); // "lista" | "outro"
   const [available, setAvailable] = useState(true);
   const [lastDonationDate, setLastDonationDate] = useState("");
 
@@ -2511,28 +2510,17 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
                 </select>
               </Field>
               <Field label="Município / cidade">
-                {cityMode === "lista" ? (
-                  <select
-                    value={city}
-                    onChange={(e) => {
-                      if (e.target.value === "__outro__") { setCityMode("outro"); setCity(""); }
-                      else setCity(e.target.value);
-                    }}
-                    className={inputClass}
-                    style={inputStyle}
-                  >
-                    <option value="">Escolha…</option>
-                    {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m}>{m}</option>)}
-                    <option value="__outro__">Outro</option>
-                  </select>
-                ) : (
-                  <div>
-                    <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
-                    <button type="button" onClick={() => { setCityMode("lista"); setCity(""); }} className="text-xs font-semibold mt-1.5" style={{ color: C.gold }}>
-                      ← Escolher da lista
-                    </button>
-                  </div>
-                )}
+                <input
+                  list="municipios-registar"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Escreva para procurar…"
+                />
+                <datalist id="municipios-registar">
+                  {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m} value={m} />)}
+                </datalist>
               </Field>
             </div>
 
@@ -2566,11 +2554,9 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
 /* ---------- PUBLICAR ---------- */
 function Publicar({ donors, onSubmit, onDone, showToast }) {
   const [place, setPlace] = useState("");
-  const [placeMode, setPlaceMode] = useState("lista"); // "lista" | "outro"
   const [bloodType, setBloodType] = useState(null);
   const [province, setProvince] = useState("Luanda");
   const [city, setCity] = useState("");
-  const [cityMode, setCityMode] = useState("lista"); // "lista" | "outro"
   const [units, setUnits] = useState(1);
   const [urgency, setUrgency] = useState("alta");
   const [contactPhone, setContactPhone] = useState("");
@@ -2667,6 +2653,12 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
     );
   }
 
+  // hospitais desta província; se o município escolhido tiver hospitais próprios, mostra só esses
+  const hospitalsInMunicipio = city ? HOSPITALS.filter((h) => h.province === province && h.municipio === city) : [];
+  const hospitalOptions = hospitalsInMunicipio.length > 0
+    ? hospitalsInMunicipio
+    : HOSPITALS.filter((h) => h.province === province);
+
   return (
     <div className="fadeUp max-w-lg mx-auto">
       <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
@@ -2697,79 +2689,40 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
             </select>
           </Field>
           <Field label="Município / cidade">
-            {cityMode === "lista" ? (
-              <select
-                value={city}
-                onChange={(e) => {
-                  if (e.target.value === "__outro__") { setCityMode("outro"); setCity(""); }
-                  else setCity(e.target.value);
-                }}
-                className={inputClass}
-                style={inputStyle}
-              >
-                <option value="">Escolha…</option>
-                {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m}>{m}</option>)}
-                <option value="__outro__">Outro</option>
-              </select>
-            ) : (
-              <div>
-                <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
-                <button type="button" onClick={() => { setCityMode("lista"); setCity(""); }} className="text-xs font-semibold mt-1.5" style={{ color: C.gold }}>
-                  ← Escolher da lista
-                </button>
-              </div>
-            )}
+            <input
+              list="municipios-publicar"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+              placeholder="Escreva para procurar…"
+            />
+            <datalist id="municipios-publicar">
+              {(MUNICIPIOS_BY_PROVINCE[province] || []).map((m) => <option key={m} value={m} />)}
+            </datalist>
           </Field>
         </div>
 
         <Field label="Hospital / local">
-          {placeMode === "lista" ? (
-            <select
-              value={place}
-              onChange={(e) => {
-                if (e.target.value === "__outro__") {
-                  setPlaceMode("outro");
-                  setPlace("");
-                } else {
-                  setPlace(e.target.value);
-                }
-              }}
-              className={inputClass}
-              style={inputStyle}
-            >
-              <option value="">
-                {HOSPITALS.some((h) => h.province === province) ? `Escolha um hospital em ${province}…` : "Nenhum hospital listado nesta província ainda"}
-              </option>
-              {HOSPITALS.filter((h) => h.province === province)
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((h) => (
-                  <option key={h.name} value={h.name}>{h.name}</option>
-                ))}
-              <option value="__outro__">Outro (não está na lista)</option>
-            </select>
-          ) : (
-            <div>
-              <input
-                value={place}
-                onChange={(e) => setPlace(e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-                placeholder="Escreva o nome do hospital ou local"
-              />
-              <button
-                type="button"
-                onClick={() => { setPlaceMode("lista"); setPlace(""); }}
-                className="text-xs font-semibold mt-1.5"
-                style={{ color: C.gold }}
-              >
-                ← Escolher da lista
-              </button>
-            </div>
-          )}
+          <input
+            list="hospitais-publicar"
+            value={place}
+            onChange={(e) => setPlace(e.target.value)}
+            className={inputClass}
+            style={inputStyle}
+            placeholder="Escreva para procurar…"
+          />
+          <datalist id="hospitais-publicar">
+            {hospitalOptions
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((h) => <option key={h.name} value={h.name} />)}
+          </datalist>
         </Field>
         <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
-          A lista mostra só hospitais de <strong style={{ color: C.muted }}>{province}</strong>. Mude a província acima para ver outra região.
+          {hospitalsInMunicipio.length > 0
+            ? <>A lista mostra só hospitais de <strong style={{ color: C.muted }}>{city}</strong>. Mude o município ou a província acima para ver outros.</>
+            : <>A lista mostra hospitais de <strong style={{ color: C.muted }}>{province}</strong>. Mude a província acima para ver outra região.</>}
         </p>
 
         <Field label="Grupo sanguíneo necessário">
@@ -3211,5 +3164,6 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
+
 
 
