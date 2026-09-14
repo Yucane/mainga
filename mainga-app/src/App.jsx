@@ -528,7 +528,7 @@ function MaingaApp() {
   const chooseRole = (role) => {
     setUserRole(role);
     try { localStorage.setItem("mainga_role", role); } catch { /* indisponível — sem problema */ }
-    setView(role === "doador" ? "registar" : "procurar");
+    setView(role === "doador" ? "registar" : "publicar");
   };
   const myBloodTypeRef = useRef(null);
 
@@ -1121,7 +1121,15 @@ function MaingaApp() {
                 </div>
               </button>
             </div>
-            <button onClick={() => chooseRole("pesquisador")} className="text-xs mt-6" style={{ color: C.faint }}>
+            <button
+              onClick={() => {
+                setUserRole("pesquisador");
+                try { localStorage.setItem("mainga_role", "pesquisador"); } catch {}
+                setView("feed");
+              }}
+              className="text-xs mt-6"
+              style={{ color: C.faint }}
+            >
               Só quero ver os pedidos, sem escolher agora →
             </button>
           </div>
@@ -3128,3 +3136,4 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
+
