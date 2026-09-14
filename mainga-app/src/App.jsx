@@ -137,16 +137,17 @@ function clearPersistedSession() {
 }
 
 /* mapear entre snake_case (base de dados) e camelCase (usado na app) */
-const DONATION_INTERVAL_DAYS = 90;
+const DONATION_INTERVAL_DAYS = { masculino: 90, feminino: 120, default: 90 };
 
-function donorEligibleDate(lastDonationDate) {
+function donorEligibleDate(lastDonationDate, sex) {
   if (!lastDonationDate) return null;
   const d = new Date(lastDonationDate);
-  d.setDate(d.getDate() + DONATION_INTERVAL_DAYS);
+  const days = DONATION_INTERVAL_DAYS[sex] || DONATION_INTERVAL_DAYS.default;
+  d.setDate(d.getDate() + days);
   return d;
 }
 function donorIsEligible(donor) {
-  const elig = donorEligibleDate(donor.lastDonationDate);
+  const elig = donorEligibleDate(donor.lastDonationDate, donor.sex);
   return !elig || elig.getTime() <= Date.now();
 }
 
@@ -521,6 +522,14 @@ function MaingaApp() {
   useEffect(() => {
     try { localStorage.setItem("mainga_lang", lang); } catch { /* indisponível — sem problema */ }
   }, [lang]);
+  const [userRole, setUserRole] = useState(() => {
+    try { return localStorage.getItem("mainga_role") || null; } catch { return null; }
+  });
+  const chooseRole = (role) => {
+    setUserRole(role);
+    try { localStorage.setItem("mainga_role", role); } catch { /* indisponível — sem problema */ }
+    setView(role === "doador" ? "registar" : "procurar");
+  };
   const myBloodTypeRef = useRef(null);
 
   useEffect(() => {
@@ -1076,6 +1085,46 @@ function MaingaApp() {
             </div>
             <span className="text-sm">{t(lang, "loading")}</span>
           </div>
+        ) : !userRole && view === "feed" ? (
+          <div className="fadeUp max-w-md mx-auto text-center py-16">
+            <span className="text-2xl font-extrabold tracking-tight block mb-2" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
+              Bem-vindo à Mainga
+            </span>
+            <p className="text-sm mb-8" style={{ color: C.muted }}>
+              Para lhe mostrar o caminho certo logo de início, diga-nos porque está aqui.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => chooseRole("doador")}
+                className="rounded-xl p-5 text-left transition-transform active:scale-[0.98]"
+                style={{ background: C.surface, border: `1px solid ${C.line}` }}
+              >
+                <div className="flex items-center gap-3">
+                  <Droplet size={22} color={C.garnet} />
+                  <div>
+                    <div className="font-bold text-sm" style={{ color: C.paper }}>Sou doador / quero doar</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.faint }}>Regista-te e aparece para quem precisar do teu grupo sanguíneo</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => chooseRole("pesquisador")}
+                className="rounded-xl p-5 text-left transition-transform active:scale-[0.98]"
+                style={{ background: C.surface, border: `1px solid ${C.line}` }}
+              >
+                <div className="flex items-center gap-3">
+                  <Search size={22} color={C.gold} />
+                  <div>
+                    <div className="font-bold text-sm" style={{ color: C.paper }}>Preciso de sangue / procuro um doador</div>
+                    <div className="text-xs mt-0.5" style={{ color: C.faint }}>Procura doadores compatíveis ou publica um pedido urgente</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+            <button onClick={() => chooseRole("pesquisador")} className="text-xs mt-6" style={{ color: C.faint }}>
+              Só quero ver os pedidos, sem escolher agora →
+            </button>
+          </div>
         ) : (
           <>
             {view === "feed" && (
@@ -1141,6 +1190,9 @@ function MaingaApp() {
           </button>
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             {t(lang, "footer_admin")}
+          </button>
+          <button onClick={() => { setUserRole(null); try { localStorage.removeItem("mainga_role"); } catch {} setView("feed"); }} style={{ color: C.line }} className="underline">
+            mudar o que procuro
           </button>
         </div>
       </footer>
@@ -1562,51 +1614,389 @@ function UseMyLocationButton({ onFound, showToast }) {
    "List of hospitals in Angola" / "Healthcare in Angola"); pequeno desvio de
    coordenadas para não sobrepor marcadores na mesma cidade */
 const HOSPITALS = [
-  // Luanda — a província com mais hospitais confirmados
-  { name: "Hospital Josina Machel", province: "Luanda", coords: [-8.824, 13.2265] },
-  { name: "Hospital Américo Boavida", province: "Luanda", coords: [-8.831, 13.238] },
-  { name: "Clínica Sagrada Esperança", province: "Luanda", coords: [-8.812, 13.231] },
-  { name: "Hospital Militar Principal", province: "Luanda", coords: [-8.845, 13.221] },
-  { name: "Hospital Geral Camama", province: "Luanda", coords: [-8.905, 13.253] },
-  { name: "Hospital Geral Kilamba Kiaxi", province: "Luanda", coords: [-8.921, 13.276] },
-  { name: "Hospital do Prenda", province: "Luanda", coords: [-8.818, 13.252] },
-  { name: "Cajueiros General Hospital (Cazenga)", province: "Luanda", coords: [-8.8285, 13.2954] },
-  { name: "Lucrécia Paím Maternity Hospital", province: "Luanda", coords: [-8.815, 13.235] },
-  { name: "Clínica Multiperfil", province: "Luanda", coords: [-8.84, 13.245] },
-
-  // Benguela
-  { name: "Hospital Benguela 70", province: "Benguela", coords: PROVINCE_COORDS["Benguela"] },
-  { name: "Hospital Nossa Senhora da Paz (Cubal)", province: "Benguela", coords: [-12.617, 14.25] },
-
-  // Huambo
-  { name: "Bongo Mission Hospital", province: "Huambo", coords: PROVINCE_COORDS["Huambo"] },
-
-  // Cuando Cubango
-  { name: "Hospital Provincial do Kuando Kubango", province: "Cuando Cubango", coords: PROVINCE_COORDS["Cuando Cubango"] },
-  { name: "Hospital Municipal do Kuvango", province: "Cuando Cubango", coords: [-14.478, 16.478] },
-
-  // Lunda Norte
-  { name: "Hospital Provincial da Lunda Norte", province: "Lunda Norte", coords: PROVINCE_COORDS["Lunda Norte"] },
-  { name: "Hospital Municipal de Cafunfo", province: "Lunda Norte", coords: [-9.139, 18.55] },
-  { name: "Hospital Municipal de Lucapa", province: "Lunda Norte", coords: [-8.418, 20.744] },
-
-  // restantes províncias — referência provincial única, até termos confirmação de mais nomes
-  { name: "Hospital Barra do Dande", province: "Bengo", coords: PROVINCE_COORDS["Bengo"] },
-  { name: "Hospital Provincial de Catete", province: "Icolo e Bengo", coords: PROVINCE_COORDS["Icolo e Bengo"] },
-  { name: "Hospital Provincial de N'dalatando", province: "Cuanza Norte", coords: PROVINCE_COORDS["Cuanza Norte"] },
-  { name: "Hospital Provincial do Sumbe", province: "Cuanza Sul", coords: PROVINCE_COORDS["Cuanza Sul"] },
-  { name: "Hospital Provincial de Malanje", province: "Malanje", coords: PROVINCE_COORDS["Malanje"] },
-  { name: "Hospital Provincial da Lunda Sul", province: "Lunda Sul", coords: PROVINCE_COORDS["Lunda Sul"] },
-  { name: "Hospital Provincial do Kuito", province: "Bié", coords: PROVINCE_COORDS["Bié"] },
-  { name: "Hospital Provincial do Luena", province: "Moxico", coords: PROVINCE_COORDS["Moxico"] },
-  { name: "Hospital Provincial de Cazombo", province: "Moxico Leste", coords: PROVINCE_COORDS["Moxico Leste"] },
-  { name: "Hospital Provincial de Mavinga", province: "Cuando", coords: PROVINCE_COORDS["Cuando"] },
-  { name: "Hospital Sanatório de Moçâmedes", province: "Namibe", coords: PROVINCE_COORDS["Namibe"] },
-  { name: "Hospital Agostinho Neto", province: "Huíla", coords: PROVINCE_COORDS["Huíla"] },
-  { name: "Hospital Municipal do Cahama", province: "Cunene", coords: PROVINCE_COORDS["Cunene"] },
-  { name: "Hospital Provincial de Cabinda", province: "Cabinda", coords: PROVINCE_COORDS["Cabinda"] },
-  { name: "Hospital Provincial de M'banza Kongo", province: "Zaire", coords: PROVINCE_COORDS["Zaire"] },
-  { name: "Hospital Sanatório do Uíge", province: "Uíge", coords: PROVINCE_COORDS["Uíge"] },
+  { name: "Hospital Municipal Do Ambriz", province: "Bengo" },
+  { name: "Hospital Municipal Do Bula Atumba", province: "Bengo" },
+  { name: "Hospital Municipal Do Caxito", province: "Bengo" },
+  { name: "Hospital Municipal Do Dande", province: "Bengo" },
+  { name: "Hospital Municipal Do Muxaluando", province: "Bengo" },
+  { name: "Hospital Municipal Do Pango Aluquém", province: "Bengo" },
+  { name: "Hospital Regional Do Quibaxe", province: "Bengo" },
+  { name: "Hospital Geral Da Barra Do Dande", province: "Bengo" },
+  { name: "Hospital Geral Do Bengo Reverendo Guilherme Pereira Inglês", province: "Bengo" },
+  { name: "Hospital Geral Do Bula Atumba", province: "Bengo" },
+  { name: "Hospital Provincial Do Bengo", province: "Bengo" },
+  { name: "Hospital Municipal Da Baía Farta", province: "Benguela" },
+  { name: "Hospital Da Catumbela", province: "Benguela" },
+  { name: "Hospital Municipal Da Catumbela", province: "Benguela" },
+  { name: "Hospital Municipal Da Ganda", province: "Benguela" },
+  { name: "Hospital Municipal Cdte Jika Cme", province: "Benguela" },
+  { name: "Hospital Municipal De Benguela", province: "Benguela" },
+  { name: "Hospital Municipal Do Balombo", province: "Benguela" },
+  { name: "Hospital Municipal Do Bocoio", province: "Benguela" },
+  { name: "Hospital Municipal Do Caimbambo", province: "Benguela" },
+  { name: "Hospital Municipal Do Chongorói", province: "Benguela" },
+  { name: "Hospital Municipal Do Cubal", province: "Benguela" },
+  { name: "Hospital Municipal Missionario Do Cubal", province: "Benguela" },
+  { name: "Hospital Central Do Dombe Grande", province: "Benguela" },
+  { name: "Hospital Municipal Do Lobito Cme", province: "Benguela" },
+  { name: "Hospital Pediátrico De Benguela", province: "Benguela" },
+  { name: "Hospital Provincial De Benguela", province: "Benguela" },
+  { name: "Hospital Municipal Do Lobito-Maternidade", province: "Benguela" },
+  { name: "Hospital Pediátrico Do Lobito", province: "Benguela" },
+  { name: "Hospital Regional Do Lobito", province: "Benguela" },
+  { name: "Hospital Do Andulo", province: "Bié" },
+  { name: "Hospital Do Chicumbi", province: "Bié" },
+  { name: "Hospital Do Chilesso", province: "Bié" },
+  { name: "Hospital Municipal De Camacupa", province: "Bié" },
+  { name: "Hospital De Chissamba", province: "Bié" },
+  { name: "Hospital Municipal Do Catabola", province: "Bié" },
+  { name: "Hospital Municipal Do Chinguar", province: "Bié" },
+  { name: "Hospital Municipal De Chitembo", province: "Bié" },
+  { name: "Hospital Regional Do Cuemba", province: "Bié" },
+  { name: "Hospital De Camundongo", province: "Bié" },
+  { name: "Hospital Municipal Do Cuito", province: "Bié" },
+  { name: "Hospital Sanatório Do Cuito", province: "Bié" },
+  { name: "Hospital Municipal Do Cunhinga", province: "Bié" },
+  { name: "Hospital Sanatório Do Cunhinga", province: "Bié" },
+  { name: "Hospital De Catota", province: "Bié" },
+  { name: "Hospital Municipal De Nharêa", province: "Bié" },
+  { name: "Hospital Regional Mártires Do Cuito", province: "Bié" },
+  { name: "Hospital Provincial Do Bié", province: "Bié" },
+  { name: "Hospital Regional Do Belize", province: "Cabinda" },
+  { name: "Hospital Municipal De Buco Zau", province: "Cabinda" },
+  { name: "Hospital Regional Norte De Buco Zau", province: "Cabinda" },
+  { name: "Hospital Municipal De Cacongo", province: "Cabinda" },
+  { name: "Hospital Municipal Do Chinga Cabinda", province: "Cabinda" },
+  { name: "Hospital Central De Cabinda", province: "Cabinda" },
+  { name: "Hospital Provincial De Cabinda", province: "Cabinda" },
+  { name: "Hospital De Santa Catarina Cabinda", province: "Cabinda" },
+  { name: "Hospital Primeiro De Maio/Cabinda", province: "Cabinda" },
+  { name: "Hospital Municipal De Dirico", province: "Cuando" },
+  { name: "Hospital Municipal De Mavinga", province: "Cuando" },
+  { name: "Hospital Do Cuito-Cuanaval/C.Cubango", province: "Cuando" },
+  { name: "Hospital Municipal Do Rivungo", province: "Cuando" },
+  { name: "Hospital Materno-Infantil Do Samba Cajú", province: "Cuanza Norte" },
+  { name: "Hospital Municipal De Samba Cajú", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Do Ambaca", province: "Cuanza Norte" },
+  { name: "Hospital Provincial De Camabatela", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Do Dondo", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Do Cazengo", province: "Cuanza Norte" },
+  { name: "Hospital Municipal De Golungo Alto", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Materno-Infantil Do Golungo Alto", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Do Lucala", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Materno-Infantil Do Lucala", province: "Cuanza Norte" },
+  { name: "Hospital Municipal Do Ngonguembo", province: "Cuanza Norte" },
+  { name: "Hospital Regional Do Quiculungo", province: "Cuanza Norte" },
+  { name: "Hospital Materno Infantil Do Cuanza Norte", province: "Cuanza Norte" },
+  { name: "Hospital Geral Do Cuanza-Norte «Mário Coelho Pinto De Andrade»", province: "Cuanza Norte" },
+  { name: "Hospital Provincial Dr.A.Agostinho Neto/Cuanza - Norte", province: "Cuanza Norte" },
+  { name: "Hospital Provincial Sanatório Do Cuanza Norte", province: "Cuanza Norte" },
+  { name: "Hospital Da Boa Entrada", province: "Cuanza Sul" },
+  { name: "Hospital Da Gabela", province: "Cuanza Sul" },
+  { name: "Hospital De Calulo/C.Sul", province: "Cuanza Sul" },
+  { name: "Hospital Municipal Do Cassongue", province: "Cuanza Sul" },
+  { name: "Hospital Do Conda", province: "Cuanza Sul" },
+  { name: "Hospital Municipal Do Ebo", province: "Cuanza Sul" },
+  { name: "Hospital Municipal Do Mussende", province: "Cuanza Sul" },
+  { name: "Hospital Do Porto Amboim", province: "Cuanza Sul" },
+  { name: "Hospital Do Quibala", province: "Cuanza Sul" },
+  { name: "Hospital Municipal Do Quilenda", province: "Cuanza Sul" },
+  { name: "Hospital Do Seles", province: "Cuanza Sul" },
+  { name: "Hospital Municipal Do Sumbe", province: "Cuanza Sul" },
+  { name: "Hospital Da Cela", province: "Cuanza Sul" },
+  { name: "Hospital Pediátrico Do Cuanza-Sul", province: "Cuanza Sul" },
+  { name: "Hospital Geral Do Cuanza-Sul «Comandante Raul Diaz Arguelles»", province: "Cuanza Sul" },
+  { name: "Hospital Provincial Do Sumbe/Cuanza - Sul", province: "Cuanza Sul" },
+  { name: "Hospital Municipal De Menongue/Cuando-Cubango", province: "Cuando Cubango" },
+  { name: "Hospital Municipal De Nancova/Cubango", province: "Cuando Cubango" },
+  { name: "Hospital Municipal Do Calai/C. Cubango", province: "Cuando Cubango" },
+  { name: "Hospital Municipal Do Cuangar/C. Cubango", province: "Cuando Cubango" },
+  { name: "Hospital Municipal Do Cuchi/C.Cubango", province: "Cuando Cubango" },
+  { name: "Hospital Pediátrico De Menongue", province: "Cuando Cubango" },
+  { name: "Hospital Sanatório De Menongue", province: "Cuando Cubango" },
+  { name: "Hospital Provincial De Menongue/K.Kubango", province: "Cuando Cubango" },
+  { name: "Hospital Do Cahama", province: "Cunene" },
+  { name: "Hospital Municipal De Cuanhama", province: "Cunene" },
+  { name: "Hospital Municipal Do Curoca", province: "Cunene" },
+  { name: "Hospital Municipal Do Cuvelai", province: "Cunene" },
+  { name: "Hospital Da Missão Catolica Do Chiulo", province: "Cunene" },
+  { name: "Hospital Municipal Do Namacunde", province: "Cunene" },
+  { name: "Hospital De Xangongo", province: "Cunene" },
+  { name: "Hospital Geral Do Cunene «General Simione Mucune»", province: "Cunene" },
+  { name: "Hospital Provincial De Onjiva/Kunene", province: "Cunene" },
+  { name: "Complexo Hospitalar De Doenças Cardiopulmonares Cardeal Dom Alexandre Do Nascimento", province: "Luanda" },
+  { name: "Hospital Militar De Cabinda", province: "Luanda" },
+  { name: "Hospital Militar Regional Do Huambo", province: "Luanda" },
+  { name: "Hospital Militar Regional Do Lubango", province: "Luanda" },
+  { name: "Hospital Américo Boavida", province: "Luanda" },
+  { name: "Hospital De Medicina E Reabilitação Física", province: "Luanda" },
+  { name: "Hospital Do Prenda", province: "Luanda" },
+  { name: "Hospital Dr. Walter Strangway", province: "Luanda" },
+  { name: "Hospital Geral Especializado Augusto N'Gangula", province: "Luanda" },
+  { name: "Hospital Josina Machel", province: "Luanda" },
+  { name: "Hospital Materno-Infantil Do Camama «Manuel Pedro Azancot De Menezes».", province: "Luanda" },
+  { name: "Hospital Militar Principal", province: "Luanda" },
+  { name: "Hospital Neves Bendinha", province: "Luanda" },
+  { name: "Hospital Pediátrico De Luanda-David Bernardino", province: "Luanda" },
+  { name: "Hospital Psiquiatrico De Luanda", province: "Luanda" },
+  { name: "Hospital Municipal De Chicala Choloanga", province: "Huambo" },
+  { name: "Hospital Municipal Do Alto Hama", province: "Huambo" },
+  { name: "Hospital Municipal Do Bailundo", province: "Huambo" },
+  { name: "Hospital Municipal Da Caála", province: "Huambo" },
+  { name: "Hospital Municipal Do Catchiungo", province: "Huambo" },
+  { name: "Hospital Municipal Do Chinjenje", province: "Huambo" },
+  { name: "Hospital Municipal Do Ecunha", province: "Huambo" },
+  { name: "Hospital Materno Infantil Da Mineira", province: "Huambo" },
+  { name: "Hospital Municipal Casseque", province: "Huambo" },
+  { name: "Hospital Municipal Do Huambo", province: "Huambo" },
+  { name: "Hospital Municipal De Londuimbali", province: "Huambo" },
+  { name: "Hospital Municipal Do Longonjo", province: "Huambo" },
+  { name: "Hospital Municipal Do Mungo", province: "Huambo" },
+  { name: "Hospital Municipal Do Ucuma", province: "Huambo" },
+  { name: "Hospital Provincial Do Huambo", province: "Huambo" },
+  { name: "Hospital Sanatório Do Huambo", province: "Huambo" },
+  { name: "Hospital Municipal Da Chibia", province: "Huíla" },
+  { name: "Hospital Municipal Da Humpata", province: "Huíla" },
+  { name: "Hospital Municipal Da Jamba Mineira", province: "Huíla" },
+  { name: "Hospital Municipal Da Matala", province: "Huíla" },
+  { name: "Hospital Municipal Da Palanca", province: "Huíla" },
+  { name: "Hospital Municipal Da Caconda", province: "Huíla" },
+  { name: "Hospital Municipal Da Cacula", province: "Huíla" },
+  { name: "Hospital Municipal Da Chicomba", province: "Huíla" },
+  { name: "Hospital Municipal Do Chipindo", province: "Huíla" },
+  { name: "Hospital Municipal Do Cuvango", province: "Huíla" },
+  { name: "Hospital Municipal Do Quilengues", province: "Huíla" },
+  { name: "Hospital Municipal De Quipungo", province: "Huíla" },
+  { name: "Hospital De Capelongo", province: "Huíla" },
+  { name: "Hospital Municipal Dos Gambos", province: "Huíla" },
+  { name: "Hospital Municipal Do Toco", province: "Huíla" },
+  { name: "Hospital Municipal Da Centralidade Da Quilemba", province: "Huíla" },
+  { name: "Hospital Municipal Da Eyva Do Lubango", province: "Huíla" },
+  { name: "Hospital Municipal Da Machiqueira", province: "Huíla" },
+  { name: "Hospital Municipal Do Lubango Maria Olga Chaves", province: "Huíla" },
+  { name: "Hospital Pediátrico Pioneiro Zeca/Huíla", province: "Huíla" },
+  { name: "Hospital Psiquiatrico Da Huíla", province: "Huíla" },
+  { name: "Hospital Sanatório Do Lubango", province: "Huíla" },
+  { name: "Hospital De Kaluquembe/Huíla", province: "Huíla" },
+  { name: "Hospital Provincial Dr.António A.Neto/Huíla", province: "Huíla" },
+  { name: "Hospital Municipal De Quiçama", province: "Icolo e Bengo" },
+  { name: "Hospital Municipal De Catete", province: "Icolo e Bengo" },
+  { name: "Hospital Municipal De Cacuaco", province: "Luanda" },
+  { name: "Hospital Municipal De Viana", province: "Luanda" },
+  { name: "Hospital Municipal De Cazenga", province: "Luanda" },
+  { name: "Hospital Municipal De Sambizanga", province: "Luanda" },
+  { name: "Hospital Municipal De Capalanga-Viana", province: "Luanda" },
+  { name: "Hospital Materno Infantil Do Ximbicato", province: "Luanda" },
+  { name: "Hospital Municipal De Talatona", province: "Luanda" },
+  { name: "Hospital Municipal Do Talatona", province: "Luanda" },
+  { name: "Hospital Divina Providência", province: "Luanda" },
+  { name: "Hospital Kilamba Kiaxi", province: "Luanda" },
+  { name: "Hospital Dos Cajueiros Do Cazenga\Luanda", province: "Luanda" },
+  { name: "Hospital Dos Queimados «Presidente Julius Nyerere»", province: "Luanda" },
+  { name: "Hospital Geral De Cacuaco Heróis Do Kifangondo", province: "Luanda" },
+  { name: "Hospital Geral De Luanda-Camama", province: "Luanda" },
+  { name: "Hospital Geral De Viana «Bispo Emílio Júlio Miguel De Carvalho»", province: "Luanda" },
+  { name: "Hospital Pedro Maria Tonha «Pedalé»", province: "Luanda" },
+  { name: "Hospital Municipal Do Cambulo", province: "Lunda Norte" },
+  { name: "Hospital Sanatório Do Nzage", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Caungula", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Chitato", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Cuango", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Cambimbi", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Lucapa", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Xá Muteba", province: "Lunda Norte" },
+  { name: "Hospital De Calonda/L.Norte", province: "Lunda Norte" },
+  { name: "Hospital De Cassaguidi/L.Norte", province: "Lunda Norte" },
+  { name: "Hospital Geral Do Dundo Nova Centralidade", province: "Lunda Norte" },
+  { name: "Hospital Municipal De Cafunfo/L.Norte", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Nzagi/L.Norte", province: "Lunda Norte" },
+  { name: "Hospital Provincial Materno Infantil Ln", province: "Lunda Norte" },
+  { name: "Hospital Sanatório Provincial Da Lunda Norte", province: "Lunda Norte" },
+  { name: "Hospital Provincial Da Lunda-Norte", province: "Lunda Norte" },
+  { name: "Hospital Municipal Do Cacolo", province: "Lunda Sul" },
+  { name: "Hospital Psiquiátrico Do Saurimo", province: "Lunda Sul" },
+  { name: "Hospital Municipal Do Dala", province: "Lunda Sul" },
+  { name: "Hospital Municipal Do Muconda", province: "Lunda Sul" },
+  { name: "Hospital Municipal Do Saurimo", province: "Lunda Sul" },
+  { name: "Hospital Pediátrico Da Lunda Sul", province: "Lunda Sul" },
+  { name: "Hospital Maternidade Provincial Da Lunda Sul", province: "Lunda Sul" },
+  { name: "Hospital Provincial Da Lunda-Sul", province: "Lunda Sul" },
+  { name: "Hospital Sanatório Do Saurimo", province: "Lunda Sul" },
+  { name: "Hospital Municipal De Caculama", province: "Malanje" },
+  { name: "Hospital Municipal Do Cacuso", province: "Malanje" },
+  { name: "Hospital Municipal Do Cahombo", province: "Malanje" },
+  { name: "Hospital Municipal Do Calandula", province: "Malanje" },
+  { name: "Hospital Municipal Do Cambundi Catembo", province: "Malanje" },
+  { name: "Hospital Municipal De Cangandala/Malanje", province: "Malanje" },
+  { name: "Hospital Municipal Do Cangandala", province: "Malanje" },
+  { name: "Hospital Municipal Do Kiwaba Nzoji", province: "Malanje" },
+  { name: "Hospital Municipal Do Kunda Dya Baze", province: "Malanje" },
+  { name: "Hospital Municipal Do Luquembo", province: "Malanje" },
+  { name: "Hospital Municipal Do Marimba", province: "Malanje" },
+  { name: "Hospital Municipal Do Massango", province: "Malanje" },
+  { name: "Hospital Municipal Do Quela", province: "Malanje" },
+  { name: "Hospital Municipal De Malanje", province: "Malanje" },
+  { name: "Hospital Municipal Do Quirima", province: "Malanje" },
+  { name: "Hospital Materno Infantil De Malanje", province: "Malanje" },
+  { name: "Hospital Provincial De Malanje", province: "Malanje" },
+  { name: "Hospital Provincial Materno Infantil/Malanje", province: "Malanje" },
+  { name: "Hospital Sanatório De Malanje", province: "Malanje" },
+  { name: "Hospital Municipal De Camanongue/Moxico", province: "Moxico" },
+  { name: "Hospital Municipal Dos Luchazes Moxico", province: "Moxico" },
+  { name: "Hospital Municipal De Bundas", province: "Moxico" },
+  { name: "Hospital Municipal Do Leua/Moxico", province: "Moxico" },
+  { name: "Hospital Municipal Do Moxico", province: "Moxico" },
+  { name: "Hospital Geral Do Moxico", province: "Moxico" },
+  { name: "Hospital Municipal De Cameia", province: "Moxico Leste" },
+  { name: "Hospital Municipal Do Cazombo/Moxico Leste", province: "Moxico Leste" },
+  { name: "Hospital Municipal Do Luacano", province: "Moxico Leste" },
+  { name: "Hospital Municipal Do Luacano/Moxico - Leste", province: "Moxico Leste" },
+  { name: "Hospital Municipal Do Luau/Moxico", province: "Moxico Leste" },
+  { name: "Hospital Municipal Da Bibala", province: "Namibe" },
+  { name: "Hospital Municipal Do Camucuio", province: "Namibe" },
+  { name: "Hospital Municipal De Moçamedes", province: "Namibe" },
+  { name: "Hospital De Sacumar/Namibe", province: "Namibe" },
+  { name: "Hospital Municipal Do Tômbwa", province: "Namibe" },
+  { name: "Hospital Municipal Do Virei", province: "Namibe" },
+  { name: "Hospital Provincial Do Namibe", province: "Namibe" },
+  { name: "Hospital Provincial Materno-Infantil «Liepey»", province: "Namibe" },
+  { name: "Hospital Sanatório Do Namibe", province: "Namibe" },
+  { name: "Hospital Materno Infantil Rainha Santa Da Damba", province: "Uíge" },
+  { name: "Hospital Municipal Da Damba", province: "Uíge" },
+  { name: "Hospital Municipal Dos Buengas", province: "Uíge" },
+  { name: "Hospital Municipal Maquela Do Zombo/Uíge", province: "Uíge" },
+  { name: "Hospital Municipal Do Mucaba", province: "Uíge" },
+  { name: "Hospital Municipal Do Quimbele", province: "Uíge" },
+  { name: "Hospital Municipal De Sanza Pombo/Uíge", province: "Uíge" },
+  { name: "Hospital Municipal Do Bembe", province: "Uíge" },
+  { name: "Hospital Municipal Do Bungo", province: "Uíge" },
+  { name: "Hospital Do Negage/Uíge", province: "Uíge" },
+  { name: "Hospital Municipal Do Puri", province: "Uíge" },
+  { name: "Hospital Municipal Do Songo", province: "Uíge" },
+  { name: "Hospital Do Catapa", province: "Uíge" },
+  { name: "Hospital Municipal Do Uíge", province: "Uíge" },
+  { name: "Hospital Sanatório Do Uíge", province: "Uíge" },
+  { name: "Hospital Provincial Do Uíge", province: "Uíge" },
+  { name: "Hospital Municipal De Mbanza Congo", province: "Zaire" },
+  { name: "Hospital Municipal Materno-Infantil De Mbanza Kongo", province: "Zaire" },
+  { name: "Hospital Municipal Do Cuimba", province: "Zaire" },
+  { name: "Hospital Municipal Do Noqui", province: "Zaire" },
+  { name: "Hospital Do Nzeto/Zaire", province: "Zaire" },
+  { name: "Hospital Do Soyo", province: "Zaire" },
+  { name: "Hospital Municipal Do Tomboco", province: "Zaire" },
+  { name: "Hospital Provincial Do Zaire", province: "Zaire" },
+  { name: "Centro De Saúde Materno-Infantil Do Chongorói", province: "Benguela" },
+  { name: "Centro De Saúde Da Chicala", province: "Bié" },
+  { name: "Centro De Saúde Da Centralidade Do Cuíto", province: "Bié" },
+  { name: "Centro De Saúde Do Catemo", province: "Bié" },
+  { name: "Centro De Saúde Do Trumba Município Do Cuíto", province: "Bié" },
+  { name: "Centro Materno Infantil De Camacupa/Bié", province: "Bié" },
+  { name: "Centro Materno Infantil Do Andulo/Bié", province: "Bié" },
+  { name: "Centro Materno Infantil Do Chinguar/Bié", province: "Bié" },
+  { name: "Centro Materno Infantil Do Cuito/Bié", province: "Bié" },
+  { name: "Centro Materno Infantil Do Cunje/Bié", province: "Bié" },
+  { name: "Centro Ortopédico E De Reabilitação Física Do Bié", province: "Bié" },
+  { name: "Centro De Saúde De Referência Do Macoco 4 De Fevereiro", province: "Cabinda" },
+  { name: "Centro De Saúde De Massabi", province: "Cabinda" },
+  { name: "Centro Ortopédico De Menongue/C.Cubango", province: "Cuando Cubango" },
+  { name: "Centro De Saúde De Okalwa", province: "Cunene" },
+  { name: "Centro De Saúde De Oshimolo", province: "Cunene" },
+  { name: "Centro De Saúde Do Cavalawa", province: "Cunene" },
+  { name: "Centro De Saúde Do Otchinjau", province: "Cunene" },
+  { name: "Centro De Saúde De Cassueca", province: "Cunene" },
+  { name: "Centro De Saúde Da Tapela", province: "Cunene" },
+  { name: "Centro De Saúde De Onahumba", province: "Cunene" },
+  { name: "Centro De Saúde Da Missão Católica Da Mupa", province: "Cunene" },
+  { name: "Centro De Saúde De Omunda", province: "Cunene" },
+  { name: "Centro De Saúde De Ondobodola", province: "Cunene" },
+  { name: "Centro De Saúde Do Caluheque", province: "Cunene" },
+  { name: "Centro De Saúde De Ohenda", province: "Cunene" },
+  { name: "Centro De Saúde De Omuvandje", province: "Cunene" },
+  { name: "Centro De Saúde Do Evale", province: "Cunene" },
+  { name: "Centro Especializado De Tratamento De Endemias E Pandemias", province: "Luanda" },
+  { name: "Centro De Saúde De Referencia Da Matala", province: "Huíla" },
+  { name: "Centro De Saúde Da Hupa", province: "Huíla" },
+  { name: "Centro De Saúde Do Tchicuaqueia", province: "Huíla" },
+  { name: "Centro De Saúde Do Impulo", province: "Huíla" },
+  { name: "Centro De Saúde Do Mulondo", province: "Huíla" },
+  { name: "Centro De Saúde Da Quihita", province: "Huíla" },
+  { name: "Centro De Saúde Do Tchituto", province: "Huíla" },
+  { name: "Centro De Saúde Do Viti Vivali", province: "Huíla" },
+  { name: "Centro Ortopédico Do Lubango", province: "Huíla" },
+  { name: "Centro De Diagnóstico 4 De Fevereiro", province: "Luanda" },
+  { name: "Centro De Saúde Do Cassequel", province: "Luanda" },
+  { name: "Centro De Saúde Do Catambor", province: "Luanda" },
+  { name: "Centro De Saúde Do Nível I Alegria", province: "Luanda" },
+  { name: "Centro De Saúde Do Prenda", province: "Luanda" },
+  { name: "Centro De Saúde Do Rocha Pinto", province: "Luanda" },
+  { name: "Centro De Saúde Preventório Infantil", province: "Luanda" },
+  { name: "Centro Materno Infantil Catinton", province: "Luanda" },
+  { name: "Centro Ortopédico Neves Bendinha", province: "Luanda" },
+  { name: "Centro De Saúde De Referência Do Ramiro", province: "Luanda" },
+  { name: "Centro De Saúde Da Cerâmica", province: "Luanda" },
+  { name: "Centro De Saúde De Barra Do Bengo", province: "Luanda" },
+  { name: "Centro De Saúde De Mulenvos De Baixo", province: "Luanda" },
+  { name: "Centro De Saúde De Referencia De Cacuaco", province: "Luanda" },
+  { name: "Centro De Saúde De Referencia Do Kicolo", province: "Luanda" },
+  { name: "Centro De Saúde De Referencia Do Chimbicado", province: "Luanda" },
+  { name: "Centro Materno Infantil Do Caxinde", province: "Lunda Norte" },
+  { name: "Centro De Saúde De Tratamento De Tuberculose E Lepra", province: "Moxico" },
+  { name: "Centro De Saúde De Referência De Lutembo", province: "Moxico" },
+  { name: "Centro De Saúde De Referência Do Luvei", province: "Moxico" },
+  { name: "Centro De Saude Do Tempué", province: "Moxico" },
+  { name: "Centro De Saúde Da Nhacalunda", province: "Moxico Leste" },
+  { name: "Centro De Saúde De Chiesso", province: "Moxico Leste" },
+  { name: "Centro De Saúde De Chivinda", province: "Moxico Leste" },
+  { name: "Centro De Saúde De Sacuaha", province: "Moxico Leste" },
+  { name: "Centro De Saúde Eduardo Gomes", province: "Namibe" },
+  { name: "Centro De Saúde Gabriel Tchipanguela Kapangombe", province: "Namibe" },
+  { name: "Centro De Saúde José Tchombe", province: "Namibe" },
+  { name: "Centro De Saúde 5 De Abril I", province: "Namibe" },
+  { name: "Centro De Saúde 5 De Abril Ii", province: "Namibe" },
+  { name: "Centro De Saúde Aristides Sombreiro", province: "Namibe" },
+  { name: "Centro De Saúde Do Forte Santa Rita", province: "Namibe" },
+  { name: "Centro De Saúde Do Valódia I", province: "Namibe" },
+  { name: "Centro De Saúde Do Valódia Ii", province: "Namibe" },
+  { name: "Centro De Saúde Eucaliptos", province: "Namibe" },
+  { name: "Centro De Saúde Praia Amélia", province: "Namibe" },
+  { name: "Centro De Saúde Da Zona Sul", province: "Namibe" },
+  { name: "Centro De Saúde De Referência Felisberto João Agostinho", province: "Namibe" },
+  { name: "Centro De Saúde Do Coroca", province: "Namibe" },
+  { name: "Centro De Saúde De Referência Inácio Paquete - Cainde", province: "Namibe" },
+  { name: "Centro De Saúde De Referência De Lucunga", province: "Uíge" },
+  { name: "Centro De Saúde Do Bamba Matamba", province: "Uíge" },
+  { name: "Centro De Saúde Do Cabala", province: "Uíge" },
+  { name: "Centro De Saúde Do Cangundo", province: "Uíge" },
+  { name: "Centro De Saúde Do Cawa-Feira", province: "Uíge" },
+  { name: "Centro De Saúde Do Dimuca", province: "Uíge" },
+  { name: "Centro De Saúde Do Longe Zeca", province: "Uíge" },
+  { name: "Centro De Saúde Do Mbanza Negage", province: "Uíge" },
+  { name: "Centro De Saúde Do Pumba", province: "Uíge" },
+  { name: "Centro De Saúde Do Quindinga", province: "Uíge" },
+  { name: "Centro De Saúde Do Quisseque", province: "Uíge" },
+  { name: "Centro De Saúde Do Quituia", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Da Centralidade Do Quilumosso", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Calumbo", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Candombe Novo", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Casseche", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Catula", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Culo", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Kamacoco", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Kilala", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Paco Benz", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Quiongua", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Tange", province: "Uíge" },
+  { name: "Centro De Saúde Do Bairro Pedreira", province: "Uíge" },
+  { name: "Centro De Saúde Do Quica", province: "Uíge" },
+  { name: "Centro De Saúde Madalena José Mário Cano", province: "Uíge" },
+  { name: "Centro De Saúde De Referência Do Kaluka", province: "Zaire" },
+  { name: "Centro De Saúde De Referência Do Madimba", province: "Zaire" },
+  { name: "Centro De Saúde De Referência Do Nkalambata", province: "Zaire" },
+  { name: "Centro De Saúde De Referência Do Nkiende", province: "Zaire" },
+  { name: "Centro De Saúde Integrado", province: "Zaire" },
+  { name: "Centro De Saúde Kianganga", province: "Zaire" },
+  { name: "Centro De Saúde Mbanza Mbamba", province: "Zaire" },
+  { name: "Centro De Saúde Mbumbuzi", province: "Zaire" },
 ];
 
 function AngolaMap({ selected, onSelect, donors }) {
@@ -1647,27 +2037,29 @@ function AngolaMap({ selected, onSelect, donors }) {
     });
   }, [selected, donors]);
 
-  // hospitais de referência — um marcador por hospital, com pequeno desvio para não sobrepor no mesmo local
+  // hospitais de referência — um marcador por hospital, distribuído em espiral
+  // à volta do centro da província (padrão "girassol", mais compacto e uniforme
+  // que um desvio aleatório, mesmo com dezenas de hospitais na mesma província)
   useEffect(() => {
     if (!mapObj.current) return;
     hospitalMarkers.current.forEach((m) => m.remove());
     hospitalMarkers.current = [];
     const hospitalIcon = L.divIcon({
       className: "",
-      html: `<div style="width:12px;height:12px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:bold;">+</div>`,
-      iconSize: [12, 12],
-      iconAnchor: [6, 6],
+      html: `<div style="width:11px;height:11px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;"></div>`,
+      iconSize: [11, 11],
+      iconAnchor: [5, 5],
     });
-    const seen = {};
+    const GOLDEN_ANGLE = 2.399963229728653;
+    const seenPerProvince = {};
     HOSPITALS.forEach((h) => {
-      if (!h.coords) return;
-      const key = h.coords.join(",");
-      const n = seen[key] || 0;
-      seen[key] = n + 1;
-      // pequena espiral de desvio, para hospitais na mesma cidade não ficarem exactamente sobrepostos
-      const angle = n * 2.4;
-      const radius = n === 0 ? 0 : 0.035 + n * 0.012;
-      const offset = [h.coords[0] + 0.1 + Math.cos(angle) * radius, h.coords[1] + 0.1 + Math.sin(angle) * radius];
+      const base = PROVINCE_COORDS[h.province];
+      if (!base) return;
+      const n = seenPerProvince[h.province] || 0;
+      seenPerProvince[h.province] = n + 1;
+      const angle = n * GOLDEN_ANGLE;
+      const radius = 0.02 * Math.sqrt(n);
+      const offset = [base[0] + Math.cos(angle) * radius, base[1] + Math.sin(angle) * radius];
       const marker = L.marker(offset, { icon: hospitalIcon }).addTo(mapObj.current);
       marker.bindTooltip(`🏥 ${h.name}`, { direction: "top", opacity: 0.95 });
       hospitalMarkers.current.push(marker);
@@ -1895,7 +2287,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   };
 
   if (existing) {
-    const eligibleDate = donorEligibleDate(existing.lastDonationDate);
+    const eligibleDate = donorEligibleDate(existing.lastDonationDate, existing.sex);
     const eligible = donorIsEligible(existing);
     return (
       <div className="fadeUp max-w-md mx-auto text-center py-16">
@@ -2089,7 +2481,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
               <input type="date" value={lastDonationDate} onChange={(e) => setLastDonationDate(e.target.value)} className={inputClass} style={inputStyle} max={new Date().toISOString().slice(0, 10)} />
             </Field>
             <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
-              Ajuda a calcular quando podes doar de novo (mínimo de {DONATION_INTERVAL_DAYS} dias). Deixa em branco se nunca doaste ou não te lembras.
+              Ajuda a calcular quando podes doar de novo (mínimo de 3 meses para homens, 4 para mulheres). Deixa em branco se nunca doaste ou não te lembras.
             </p>
 
             <label className="flex items-center gap-2 mb-6 text-sm cursor-pointer" style={{ color: C.paper }}>
@@ -2115,6 +2507,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
 /* ---------- PUBLICAR ---------- */
 function Publicar({ donors, onSubmit, onDone, showToast }) {
   const [place, setPlace] = useState("");
+  const [placeMode, setPlaceMode] = useState("lista"); // "lista" | "outro"
   const [bloodType, setBloodType] = useState(null);
   const [province, setProvince] = useState("Luanda");
   const [city, setCity] = useState("");
@@ -2224,9 +2617,77 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
       </p>
 
       <div>
+        <UseMyLocationButton showToast={showToast} onFound={(prov) => setProvince(prov)} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Província">
+            <select
+              value={province}
+              onChange={(e) => {
+                setProvince(e.target.value);
+                // limpa a escolha de hospital se já não pertencer à nova província
+                const stillValid = HOSPITALS.some((h) => h.name === place && h.province === e.target.value);
+                if (!stillValid) setPlace("");
+              }}
+              className={inputClass}
+              style={inputStyle}
+            >
+              {PROVINCES.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </Field>
+          <Field label="Município / cidade">
+            <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
+          </Field>
+        </div>
+
         <Field label="Hospital / local">
-          <input value={place} onChange={(e) => setPlace(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Hospital Josina Machel" />
+          {placeMode === "lista" ? (
+            <select
+              value={place}
+              onChange={(e) => {
+                if (e.target.value === "__outro__") {
+                  setPlaceMode("outro");
+                  setPlace("");
+                } else {
+                  setPlace(e.target.value);
+                }
+              }}
+              className={inputClass}
+              style={inputStyle}
+            >
+              <option value="">
+                {HOSPITALS.some((h) => h.province === province) ? `Escolha um hospital em ${province}…` : "Nenhum hospital listado nesta província ainda"}
+              </option>
+              {HOSPITALS.filter((h) => h.province === province)
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((h) => (
+                  <option key={h.name} value={h.name}>{h.name}</option>
+                ))}
+              <option value="__outro__">Outro (não está na lista)</option>
+            </select>
+          ) : (
+            <div>
+              <input
+                value={place}
+                onChange={(e) => setPlace(e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+                placeholder="Escreva o nome do hospital ou local"
+              />
+              <button
+                type="button"
+                onClick={() => { setPlaceMode("lista"); setPlace(""); }}
+                className="text-xs font-semibold mt-1.5"
+                style={{ color: C.gold }}
+              >
+                ← Escolher da lista
+              </button>
+            </div>
+          )}
         </Field>
+        <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
+          A lista mostra só hospitais de <strong style={{ color: C.muted }}>{province}</strong>. Mude a província acima para ver outra região.
+        </p>
 
         <Field label="Grupo sanguíneo necessário">
           <div className="grid grid-cols-4 gap-2">
@@ -2235,18 +2696,6 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
             ))}
           </div>
         </Field>
-
-        <UseMyLocationButton showToast={showToast} onFound={(prov) => setProvince(prov)} />
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Província">
-            <select value={province} onChange={(e) => setProvince(e.target.value)} className={inputClass} style={inputStyle}>
-              {PROVINCES.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </Field>
-          <Field label="Município / cidade">
-            <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
-          </Field>
-        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Unidades necessárias">
