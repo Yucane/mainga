@@ -506,7 +506,15 @@ function MaingaApp() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  const [view, setView] = useState("feed");
+  const [view, setView] = useState(() => {
+    // permite abrir directamente em /privacidade, /termos ou /sobre (ex: a partir de um link partilhado,
+    // ou exigido pelo ecrã de consentimento do Google OAuth)
+    try {
+      const path = window.location.pathname.replace(/\/$/, "");
+      if (["/privacidade", "/termos", "/sobre"].includes(path)) return path.slice(1);
+    } catch { /* sem problema, usa o valor por defeito */ }
+    return "feed";
+  });
   const [donors, setDonors] = useState([]);
   const [requests, setRequests] = useState([]);
   const [verifiedRequesters, setVerifiedRequesters] = useState({});
@@ -647,6 +655,17 @@ function MaingaApp() {
   }, [session, showToast]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // mantém o endereço do browser a par das páginas legais, para poderem ser partilhadas/abertas directamente
+  useEffect(() => {
+    try {
+      const legalPaths = { privacidade: "/privacidade", termos: "/termos", sobre: "/sobre" };
+      const desired = legalPaths[view] || "/";
+      if (window.location.pathname !== desired) {
+        window.history.replaceState(null, "", desired);
+      }
+    } catch { /* sem problema */ }
+  }, [view]);
 
   // actualiza sozinho a cada 25s, sem mostrar o ecrã "A carregar..." outra vez
   useEffect(() => {
