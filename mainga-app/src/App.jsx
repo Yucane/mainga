@@ -2338,6 +2338,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   const canSubmit = name && bloodType && phone && ageValid && (!inAngola || city);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [eligibilityModal, setEligibilityModal] = useState(null); // { eligibleDate, months } | null
 
   const submit = (e) => {
     e?.preventDefault?.();
@@ -2371,10 +2372,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       const elig = donorEligibleDate(lastDonationDate, sex);
       if (elig && elig.getTime() > Date.now()) {
         const months = sex === "feminino" ? "4 meses" : "3 meses";
-        showToast?.(
-          `Registo feito! Como indicou a sua última doação, só volta a estar elegível a partir de ${elig.toLocaleDateString("pt-PT")} (mínimo de ${months} entre doações).`,
-          "gold"
-        );
+        setEligibilityModal({ eligibleDate: elig, months });
       } else {
         showToast?.("Registo feito! Já está elegível para doar e pode ser contactado.");
       }
@@ -2389,6 +2387,28 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
     const eligibleDate = donorEligibleDate(existing.lastDonationDate, existing.sex);
     const eligible = donorIsEligible(existing);
     return (
+      <>
+        {eligibilityModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+            <div className="max-w-sm w-full rounded-2xl p-6 text-center" style={{ background: C.surface, border: `2px solid ${C.gold}` }}>
+              <ShieldAlert size={36} color={C.gold} className="mx-auto mb-4" />
+              <h2 className="text-lg font-extrabold mb-3 uppercase tracking-wide" style={{ color: C.gold }}>
+                Ainda não pode doar
+              </h2>
+              <p className="text-sm mb-2" style={{ color: C.paper }}>
+                Por regra obrigatória de segurança, é preciso esperar:
+              </p>
+              <p className="text-3xl font-extrabold mb-3" style={{ color: C.paper, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                {eligibilityModal.months}
+              </p>
+              <p className="text-sm mb-1" style={{ color: C.muted }}>entre doações. Só volta a ficar disponível a partir de:</p>
+              <p className="text-lg font-extrabold mb-6" style={{ color: C.paper }}>
+                {eligibilityModal.eligibleDate.toLocaleDateString("pt-PT")}
+              </p>
+              <Btn full onClick={() => setEligibilityModal(null)}>Entendi</Btn>
+            </div>
+          </div>
+        )}
       <div className="fadeUp max-w-md mx-auto text-center py-16">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: C.greenSoft }}>
           <Check size={26} color={C.green} />
@@ -2448,10 +2468,33 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
           )}
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+      {eligibilityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+          <div className="max-w-sm w-full rounded-2xl p-6 text-center" style={{ background: C.surface, border: `2px solid ${C.gold}` }}>
+            <ShieldAlert size={36} color={C.gold} className="mx-auto mb-4" />
+            <h2 className="text-lg font-extrabold mb-3 uppercase tracking-wide" style={{ color: C.gold }}>
+              Ainda não pode doar
+            </h2>
+            <p className="text-sm mb-2" style={{ color: C.paper }}>
+              Por regra obrigatória de segurança, é preciso esperar:
+            </p>
+            <p className="text-3xl font-extrabold mb-3" style={{ color: C.paper, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              {eligibilityModal.months}
+            </p>
+            <p className="text-sm mb-1" style={{ color: C.muted }}>entre doações. Só volta a ficar disponível a partir de:</p>
+            <p className="text-lg font-extrabold mb-6" style={{ color: C.paper }}>
+              {eligibilityModal.eligibleDate.toLocaleDateString("pt-PT")}
+            </p>
+            <Btn full onClick={() => setEligibilityModal(null)}>Entendi</Btn>
+          </div>
+        </div>
+      )}
     <div className="fadeUp max-w-lg mx-auto">
       <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
         Ser doador
@@ -2626,6 +2669,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
         </Btn>
       </div>
     </div>
+    </>
   );
 }
 
