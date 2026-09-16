@@ -662,6 +662,7 @@ function MaingaApp() {
   }, [session]);
 
   const [authMode, setAuthMode] = useState("entrar"); // "entrar" | "registar"
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
 
   const signInWithGoogle = () => {
     const redirectTo = encodeURIComponent(window.location.origin);
@@ -949,35 +950,48 @@ function MaingaApp() {
                 </svg>
                 {t(lang, "auth_google")}
               </button>
-              <div className="flex items-center gap-3 mb-5">
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-                <span className="text-xs" style={{ color: C.faint }}>{t(lang, "auth_or")}</span>
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-              </div>
 
-              <div className="flex gap-2 mb-5 justify-center">
+              {!showEmailFallback ? (
                 <button
-                  onClick={() => setAuthMode("entrar")}
-                  className="px-4 py-1.5 rounded-full text-sm font-semibold"
-                  style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
+                  onClick={() => setShowEmailFallback(true)}
+                  className="text-xs"
+                  style={{ color: C.faint }}
                 >
-                  {t(lang, "auth_signin")}
+                  Problemas a entrar? Usar email
                 </button>
-                <button
-                  onClick={() => setAuthMode("registar")}
-                  className="px-4 py-1.5 rounded-full text-sm font-semibold"
-                  style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
-                >
-                  {t(lang, "auth_signup")}
-                </button>
-              </div>
-              <Field label={t(lang, "auth_email_label")}>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
-              </Field>
-              {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
-              <Btn full onClick={sendCode} disabled={authLoading || !email}>
-                {authLoading ? t(lang, "auth_sending") : t(lang, "auth_send_code")}
-              </Btn>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-5 mt-2">
+                    <div style={{ flex: 1, height: 1, background: C.line }} />
+                    <span className="text-xs" style={{ color: C.faint }}>{t(lang, "auth_or")}</span>
+                    <div style={{ flex: 1, height: 1, background: C.line }} />
+                  </div>
+
+                  <div className="flex gap-2 mb-5 justify-center">
+                    <button
+                      onClick={() => setAuthMode("entrar")}
+                      className="px-4 py-1.5 rounded-full text-sm font-semibold"
+                      style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
+                    >
+                      {t(lang, "auth_signin")}
+                    </button>
+                    <button
+                      onClick={() => setAuthMode("registar")}
+                      className="px-4 py-1.5 rounded-full text-sm font-semibold"
+                      style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
+                    >
+                      {t(lang, "auth_signup")}
+                    </button>
+                  </div>
+                  <Field label={t(lang, "auth_email_label")}>
+                    <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
+                  </Field>
+                  {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
+                  <Btn full onClick={sendCode} disabled={authLoading || !email}>
+                    {authLoading ? t(lang, "auth_sending") : t(lang, "auth_send_code")}
+                  </Btn>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -2316,6 +2330,23 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       available: inAngola ? available : false,
       lastDonationDate: lastDonationDate || null,
     });
+
+    // avisa já, na hora, se a pessoa ainda não pode doar (com base no sexo e na última doação)
+    if (lastDonationDate) {
+      const elig = donorEligibleDate(lastDonationDate, sex);
+      if (elig && elig.getTime() > Date.now()) {
+        const months = sex === "feminino" ? "4 meses" : "3 meses";
+        showToast?.(
+          `Registo feito! Como indicou a sua última doação, só volta a estar elegível a partir de ${elig.toLocaleDateString("pt-PT")} (mínimo de ${months} entre doações).`,
+          "gold"
+        );
+      } else {
+        showToast?.("Registo feito! Já está elegível para doar e pode ser contactado.");
+      }
+    } else {
+      showToast?.("Registo feito! Obrigado por se juntar à Mainga.");
+    }
+
     setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
   };
 
@@ -3223,7 +3254,6 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
-
 
 
 
