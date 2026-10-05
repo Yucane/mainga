@@ -165,6 +165,7 @@ function donorFromRow(row) {
     city: row.city,
     available: row.available,
     lastDonationDate: row.last_donation_date,
+    partnerInstitution: row.partner_institution,
     createdAt: new Date(row.created_at).getTime(),
   };
 }
@@ -182,6 +183,7 @@ function donorToRow(donor, userId) {
     available: donor.available,
     phone: donor.phone,
     last_donation_date: donor.lastDonationDate || null,
+    partner_institution: donor.partnerInstitution || null,
   };
 }
 function requestFromRow(row) {
@@ -216,7 +218,7 @@ function requestToRow(req, userId) {
   };
 }
 
-const DONOR_COLUMNS = "id,user_id,name,blood_type,age,sex,whatsapp,diaspora,province,city,available,last_donation_date,created_at";
+const DONOR_COLUMNS = "id,user_id,name,blood_type,age,sex,whatsapp,diaspora,province,city,available,last_donation_date,partner_institution,created_at";
 
 const api = {
   donors: {
@@ -2323,6 +2325,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState(null);
+  const [partnerInstitution, setPartnerInstitution] = useState("");
   const [bloodType, setBloodType] = useState(null);
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
@@ -2365,6 +2368,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       city: inAngola ? city : null,
       available: inAngola ? available : false,
       lastDonationDate: lastDonationDate || null,
+      partnerInstitution: partnerInstitution || null,
     });
 
     // avisa já, na hora, se a pessoa ainda não pode doar (com base no sexo e na última doação)
@@ -2380,7 +2384,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       showToast?.("Registo feito! Obrigado por se juntar à Mainga.");
     }
 
-    setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate("");
+    setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate(""); setPartnerInstitution("");
   };
 
   if (existing) {
@@ -2650,6 +2654,19 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
             </Field>
             <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
               Ajuda a calcular quando podes doar de novo (mínimo de 3 meses para homens, 4 para mulheres). Deixa em branco se nunca doaste ou não te lembras.
+            </p>
+
+            <Field label="És doador fiel de alguma instituição ou banco de sangue? (opcional)">
+              <input
+                value={partnerInstitution}
+                onChange={(e) => setPartnerInstitution(e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+                placeholder="Ex: Hospital Josina Machel, Instituto Nacional de Sangue…"
+              />
+            </Field>
+            <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
+              Ajuda-nos a perceber quantos doadores já têm ligação a instituições — não afecta o teu registo na Mainga.
             </p>
 
             <label className="flex items-center gap-2 mb-6 text-sm cursor-pointer" style={{ color: C.paper }}>
@@ -3333,7 +3350,6 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
-
 
 
 
