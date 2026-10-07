@@ -690,11 +690,6 @@ function MaingaApp() {
     window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
   };
 
-  const signInWithFacebook = () => {
-    const redirectTo = encodeURIComponent(window.location.origin);
-    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=facebook&redirect_to=${redirectTo}`;
-  };
-
   const sendCode = async () => {
     setAuthLoading(true);
     setAuthError("");
@@ -975,17 +970,6 @@ function MaingaApp() {
                   <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
                 </svg>
                 {t(lang, "auth_google")}
-              </button>
-
-              <button
-                onClick={signInWithFacebook}
-                className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg font-semibold text-sm mb-5 transition-transform active:scale-[0.98]"
-                style={{ background: "#1877F2", color: "#fff" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
-                  <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.23 10.44 22v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34V22C18.34 21.23 22 17.08 22 12.06Z"/>
-                </svg>
-                Continuar com Facebook
               </button>
 
               {!showEmailFallback ? (
@@ -3350,6 +3334,5 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
-
 
 
