@@ -151,6 +151,29 @@ function donorIsEligible(donor) {
   return !elig || elig.getTime() <= Date.now();
 }
 
+const INSTITUTION_KINDS = {
+  banco_de_sangue: "Banco de sangue",
+  hospital: "Hospital",
+  clinica: "Clínica",
+  ong: "ONG / associação",
+  outra: "Outra",
+};
+
+function institutionFromRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    kind: row.kind,
+    province: row.province,
+    municipio: row.municipio,
+    contactPhone: row.contact_phone,
+    contactEmail: row.contact_email,
+    status: row.status || "aprovada",
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
+  };
+}
+
 function donorFromRow(row) {
   return {
     id: row.id,
@@ -166,6 +189,7 @@ function donorFromRow(row) {
     available: row.available,
     lastDonationDate: row.last_donation_date,
     partnerInstitution: row.partner_institution,
+    institutionId: row.institution_id,
     createdAt: new Date(row.created_at).getTime(),
   };
 }
@@ -184,6 +208,7 @@ function donorToRow(donor, userId) {
     phone: donor.phone,
     last_donation_date: donor.lastDonationDate || null,
     partner_institution: donor.partnerInstitution || null,
+    institution_id: donor.institutionId || null,
   };
 }
 function requestFromRow(row) {
@@ -218,7 +243,7 @@ function requestToRow(req, userId) {
   };
 }
 
-const DONOR_COLUMNS = "id,user_id,name,blood_type,age,sex,whatsapp,diaspora,province,city,available,last_donation_date,partner_institution,created_at";
+const DONOR_COLUMNS = "id,user_id,name,blood_type,age,sex,whatsapp,diaspora,province,city,available,last_donation_date,partner_institution,institution_id,created_at";
 
 const api = {
   donors: {
@@ -252,6 +277,14 @@ const api = {
   },
   revealContact: (token, donorId) =>
     sbFetch("/rest/v1/rpc/reveal_donor_contact", { method: "POST", token, body: { target_donor_id: donorId } }),
+  institutions: {
+    listPublic: () => sbFetch("/rest/v1/institutions_public?select=*&order=name"),
+    listVisible: (token) => sbFetch("/rest/v1/institutions?select=*&order=created_at.desc", { token }),
+    apply: (token, row) =>
+      sbFetch("/rest/v1/institutions", { method: "POST", token, body: row, headers: { Prefer: "return=representation" } }),
+    setStatus: (token, id, status) =>
+      sbFetch(`/rest/v1/institutions?id=eq.${id}`, { method: "PATCH", token, body: { status } }),
+  },
   pushSubscriptions: {
     upsert: (token, row) =>
       sbFetch("/rest/v1/push_subscriptions?on_conflict=endpoint", {
@@ -520,6 +553,8 @@ function MaingaApp() {
   const [donors, setDonors] = useState([]);
   const [requests, setRequests] = useState([]);
   const [verifiedRequesters, setVerifiedRequesters] = useState({});
+  const [institutionsPublic, setInstitutionsPublic] = useState([]);
+  const [institutionsVisible, setInstitutionsVisible] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -621,10 +656,12 @@ function MaingaApp() {
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [donorRows, requestRows, verifiedRows] = await Promise.all([
+      const [donorRows, requestRows, verifiedRows, instPublicRows, instVisibleRows] = await Promise.all([
         api.donors.list(session?.token),
         api.requests.list(session?.token),
         api.verifiedRequesters.list(session?.token).catch(() => []),
+        api.institutions.listPublic().catch(() => []),
+        session ? api.institutions.listVisible(session.token).catch(() => []) : Promise.resolve([]),
       ]);
       const mappedRequests = (requestRows || []).map(requestFromRow);
 
@@ -649,6 +686,8 @@ function MaingaApp() {
       const vMap = {};
       (verifiedRows || []).forEach((v) => { vMap[v.user_id] = v.institution_name; });
       setVerifiedRequesters(vMap);
+      setInstitutionsPublic((instPublicRows || []).map(institutionFromRow));
+      setInstitutionsVisible((instVisibleRows || []).map(institutionFromRow));
     } catch (err) {
       if (!silent) showToast(`Erro ao carregar dados: ${err.message}`, "garnet");
     } finally {
@@ -838,6 +877,37 @@ function MaingaApp() {
       await api.verifiedRequesters.add(session.token, userId, institutionName);
       setVerifiedRequesters((prev) => ({ ...prev, [userId]: institutionName }));
       showToast("Instituição marcada como verificada.");
+    } catch (err) {
+      showToast(`Erro: ${err.message}`, "garnet");
+    }
+  };
+
+  const myInstitution = useMemo(
+    () => institutionsVisible.find((i) => i.userId === session?.user?.id) || null,
+    [institutionsVisible, session]
+  );
+
+  const applyInstitution = async (form) => {
+    try {
+      const rows = await api.institutions.apply(session.token, { ...form, user_id: session.user.id, status: "pendente" });
+      if (rows && rows[0]) setInstitutionsVisible((prev) => [institutionFromRow(rows[0]), ...prev]);
+      showToast("Candidatura enviada. Vamos analisar e dar resposta em breve.", "gold");
+      return true;
+    } catch (err) {
+      const msg = /duplicate|unique/i.test(err.message)
+        ? "Já existe uma candidatura associada a esta conta."
+        : err.message;
+      showToast(`Erro: ${msg}`, "garnet");
+      return false;
+    }
+  };
+
+  const setInstitutionStatus = async (id, status) => {
+    try {
+      await api.institutions.setStatus(session.token, id, status);
+      setInstitutionsVisible((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+      showToast(status === "aprovada" ? "Instituição aprovada." : "Instituição rejeitada.");
+      loadData(true);
     } catch (err) {
       showToast(`Erro: ${err.message}`, "garnet");
     }
@@ -1186,9 +1256,14 @@ function MaingaApp() {
             )}
             {view === "procurar" && <Procurar donors={donors} onReveal={revealContact} lang={lang} />}
             {view === "entrar" && renderAuthForm("Entre com o seu email para continuar.")}
+            {view === "instituicao" && (
+              session
+                ? <Instituicao myInstitution={myInstitution} donors={donors} onApply={applyInstitution} onReveal={revealContact} />
+                : renderAuthForm("Entre com o seu email para candidatar a sua instituição.")
+            )}
             {view === "registar" && (
               session
-                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} onEnablePush={enablePushNotifications} showToast={showToast} />
+                ? <Registar onSubmit={addDonor} existing={myDonor} onDelete={deleteDonor} onEnablePush={enablePushNotifications} showToast={showToast} institutions={institutionsPublic} />
                 : renderAuthForm("Entre com o seu email para se registar como doador.")
             )}
             {view === "publicar" && (
@@ -1200,6 +1275,8 @@ function MaingaApp() {
               session
                 ? (
                   <Admin
+                    institutions={institutionsVisible}
+                    onSetInstitutionStatus={setInstitutionStatus}
                     isAdmin={isAdmin}
                     donors={donors}
                     requests={requests}
@@ -1233,6 +1310,9 @@ function MaingaApp() {
           </button>
           <button onClick={() => setView("admin")} style={{ color: C.line }} className="underline">
             {t(lang, "footer_admin")}
+          </button>
+          <button onClick={() => setView("instituicao")} style={{ color: C.line }} className="underline">
+            para instituições
           </button>
           <button onClick={() => { setUserRole(null); try { localStorage.removeItem("mainga_role"); } catch {} setView("feed"); }} style={{ color: C.line }} className="underline">
             mudar o que procuro
@@ -2305,11 +2385,12 @@ function Procurar({ donors, onReveal, lang }) {
 }
 
 /* ---------- REGISTAR ---------- */
-function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
+function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast, institutions }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState(null);
   const [partnerInstitution, setPartnerInstitution] = useState("");
+  const [institutionId, setInstitutionId] = useState("");
   const [bloodType, setBloodType] = useState(null);
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
@@ -2352,7 +2433,8 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       city: inAngola ? city : null,
       available: inAngola ? available : false,
       lastDonationDate: lastDonationDate || null,
-      partnerInstitution: partnerInstitution || null,
+      institutionId: institutionId && institutionId !== "__outra__" ? institutionId : null,
+      partnerInstitution: institutionId === "__outra__" ? partnerInstitution || null : null,
     });
 
     // avisa já, na hora, se a pessoa ainda não pode doar (com base no sexo e na última doação)
@@ -2368,7 +2450,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
       showToast?.("Registo feito! Obrigado por se juntar à Mainga.");
     }
 
-    setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate(""); setPartnerInstitution("");
+    setName(""); setAge(""); setSex(null); setBloodType(null); setPhone(""); setCity(""); setLastDonationDate(""); setPartnerInstitution(""); setInstitutionId("");
   };
 
   if (existing) {
@@ -2641,16 +2723,32 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast }) {
             </p>
 
             <Field label="És doador fiel de alguma instituição ou banco de sangue? (opcional)">
-              <input
-                value={partnerInstitution}
-                onChange={(e) => setPartnerInstitution(e.target.value)}
+              <select
+                value={institutionId}
+                onChange={(e) => { setInstitutionId(e.target.value); if (e.target.value !== "__outra__") setPartnerInstitution(""); }}
                 className={inputClass}
                 style={inputStyle}
-                placeholder="Ex: Hospital Josina Machel, Instituto Nacional de Sangue…"
-              />
+              >
+                <option value="">Nenhuma / prefiro não indicar</option>
+                {(institutions || []).map((i) => (
+                  <option key={i.id} value={i.id}>{i.name} ({i.province})</option>
+                ))}
+                <option value="__outra__">Outra (escrever o nome)</option>
+              </select>
             </Field>
+            {institutionId === "__outra__" && (
+              <div className="-mt-2 mb-4">
+                <input
+                  value={partnerInstitution}
+                  onChange={(e) => setPartnerInstitution(e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Nome da instituição"
+                />
+              </div>
+            )}
             <p className="text-xs -mt-3 mb-4" style={{ color: C.faint }}>
-              Ajuda-nos a perceber quantos doadores já têm ligação a instituições — não afecta o teu registo na Mainga.
+              A instituição escolhida poderá ver o teu nome, grupo sanguíneo, localização e data da última doação, para acompanhar os seus doadores.
             </p>
 
             <label className="flex items-center gap-2 mb-6 text-sm cursor-pointer" style={{ color: C.paper }}>
@@ -2950,7 +3048,170 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
 }
 
 /* ---------- ADMIN ---------- */
-function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, onDeleteRequest, onApproveRequest, onAddVerifiedRequester }) {
+function Instituicao({ myInstitution, donors, onApply, onReveal }) {
+  const [form, setForm] = useState({ name: "", kind: "banco_de_sangue", province: "Luanda", municipio: "", contact_phone: "", contact_email: "" });
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [revealed, setRevealed] = useState({});
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    if (form.name.trim().length < 3) return setError("Indique o nome da instituição.");
+    if (form.contact_phone.trim().length < 6) return setError("Indique um telefone de contacto.");
+    setError("");
+    setSending(true);
+    await onApply({
+      name: form.name.trim(),
+      kind: form.kind,
+      province: form.province,
+      municipio: form.municipio.trim() || null,
+      contact_phone: form.contact_phone.trim(),
+      contact_email: form.contact_email.trim() || null,
+    });
+    setSending(false);
+  };
+
+  if (!myInstitution) {
+    return (
+      <div className="fadeUp max-w-lg mx-auto">
+        <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+          Para instituições
+        </h2>
+        <p className="text-sm mb-6" style={{ color: C.muted }}>
+          Bancos de sangue, hospitais e associações podem tornar-se instituições parceiras da Mainga. Depois de aprovada, a vossa instituição aparece na lista de registo dos doadores, e passam a ver os doadores que vos escolherem.
+        </p>
+        <Field label="Nome da instituição">
+          <input value={form.name} onChange={(e) => set("name", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Banco de Sangue do Hospital X" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo">
+            <select value={form.kind} onChange={(e) => set("kind", e.target.value)} className={inputClass} style={inputStyle}>
+              {Object.entries(INSTITUTION_KINDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </Field>
+          <Field label="Província">
+            <select value={form.province} onChange={(e) => set("province", e.target.value)} className={inputClass} style={inputStyle}>
+              {PROVINCES.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Município (opcional)">
+          <input value={form.municipio} onChange={(e) => set("municipio", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
+        </Field>
+        <Field label="Telefone de contacto">
+          <input value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} className={inputClass} style={inputStyle} placeholder="+244 9XX XXX XXX" />
+        </Field>
+        <Field label="Email de contacto (opcional)">
+          <input value={form.contact_email} onChange={(e) => set("contact_email", e.target.value)} className={inputClass} style={inputStyle} placeholder="instituicao@email.com" />
+        </Field>
+        <p className="text-xs mb-4" style={{ color: C.faint }}>
+          Estes contactos ficam privados: só a Mainga os vê, para confirmar que a instituição é real antes de a aprovar.
+        </p>
+        {error && <p className="text-xs mb-3" style={{ color: C.garnet }}>{error}</p>}
+        <Btn full onClick={submit} disabled={sending}>{sending ? "A enviar…" : "Candidatar instituição"}</Btn>
+      </div>
+    );
+  }
+
+  if (myInstitution.status === "pendente") {
+    return (
+      <div className="fadeUp max-w-md mx-auto text-center py-16">
+        <ShieldAlert size={32} color={C.gold} className="mx-auto mb-4" />
+        <h2 className="text-xl font-extrabold mb-2">Candidatura em análise</h2>
+        <p className="text-sm" style={{ color: C.muted }}>
+          Recebemos a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>. Vamos confirmar os dados e dar resposta em breve.
+        </p>
+      </div>
+    );
+  }
+
+  if (myInstitution.status === "rejeitada") {
+    return (
+      <div className="fadeUp max-w-md mx-auto text-center py-16">
+        <X size={32} color={C.garnet} className="mx-auto mb-4" />
+        <h2 className="text-xl font-extrabold mb-2">Candidatura não aprovada</h2>
+        <p className="text-sm" style={{ color: C.muted }}>
+          Não foi possível aprovar a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>. Se acha que houve engano, contacte a equipa da Mainga.
+        </p>
+      </div>
+    );
+  }
+
+  // aprovada: painel
+  const mine = donors.filter((d) => d.institutionId === myInstitution.id);
+  const eligibleNow = mine.filter((d) => donorIsEligible(d)).length;
+  const byType = {};
+  mine.forEach((d) => { byType[d.bloodType] = (byType[d.bloodType] || 0) + 1; });
+
+  const reveal = async (d) => {
+    const r = await onReveal(d.id);
+    if (r) setRevealed((prev) => ({ ...prev, [d.id]: r.phone }));
+  };
+
+  return (
+    <div className="fadeUp max-w-3xl mx-auto">
+      <div className="flex items-center gap-2 flex-wrap mb-1">
+        <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>{myInstitution.name}</h2>
+        <Badge tone="green"><Check size={10} /> Instituição parceira</Badge>
+      </div>
+      <p className="text-sm mb-6" style={{ color: C.muted }}>
+        Aqui aparecem os doadores que escolheram a vossa instituição ao registarem-se na Mainga. Peça aos vossos doadores para se registarem em doarmainga.com e escolherem "{myInstitution.name}".
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <StatCard label="Doadores ligados" value={mine.length} tone="garnet" />
+        <StatCard label="Elegíveis agora" value={eligibleNow} tone="green" />
+      </div>
+
+      {mine.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {Object.entries(byType).sort().map(([type, n]) => (
+            <span key={type} className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ background: C.garnetSoft, color: C.garnet }}>
+              {type}: {n}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {mine.length === 0 ? (
+        <p className="text-sm py-8 text-center" style={{ color: C.muted }}>Ainda nenhum doador escolheu esta instituição.</p>
+      ) : (
+        <div className="space-y-2">
+          {mine.map((d) => {
+            const eligible = donorIsEligible(d);
+            const eligDate = donorEligibleDate(d.lastDonationDate, d.sex);
+            return (
+              <div key={d.id} className="rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0" style={{ background: C.garnetSoft, color: C.garnet, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {d.bloodType}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: C.paper }}>{d.name}</div>
+                    <div className="text-xs" style={{ color: C.muted }}>
+                      {d.diaspora ? "Diáspora" : `${d.city ? d.city + ", " : ""}${d.province}`}
+                      {d.lastDonationDate ? ` · última doação ${new Date(d.lastDonationDate).toLocaleDateString("pt-PT")}` : ""}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: eligible ? C.green : C.gold }}>
+                      {eligible ? "Elegível para doar" : `Elegível a partir de ${eligDate.toLocaleDateString("pt-PT")}`}
+                    </div>
+                  </div>
+                </div>
+                {revealed[d.id] ? (
+                  <a href={`tel:${revealed[d.id]}`} className="text-sm font-semibold" style={{ color: C.gold }}>{revealed[d.id]}</a>
+                ) : (
+                  <Btn variant="subtle" icon={Phone} onClick={() => reveal(d)}>Revelar contacto</Btn>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Admin({ isAdmin, donors, requests, verifiedRequesters, institutions = [], onSetInstitutionStatus, onDeleteDonor, onDeleteRequest, onApproveRequest, onAddVerifiedRequester }) {
   const [tab, setTab] = useState("doadores");
   const [confirmId, setConfirmId] = useState(null);
   const [institutionInput, setInstitutionInput] = useState({});
@@ -3012,6 +3273,16 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
           {pendingCount > 0 && <Badge tone="gold">{pendingCount} por aprovar</Badge>}
         </button>
         <button
+          onClick={() => setTab("instituicoes")}
+          className="px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5"
+          style={{ background: tab === "instituicoes" ? C.garnetSoft : "transparent", color: tab === "instituicoes" ? C.garnet : C.muted }}
+        >
+          Instituições ({institutions.length})
+          {institutions.filter((i) => i.status === "pendente").length > 0 && (
+            <Badge tone="gold">{institutions.filter((i) => i.status === "pendente").length} por analisar</Badge>
+          )}
+        </button>
+        <button
           onClick={() => setTab("estatisticas")}
           className="px-3 py-1.5 rounded-full text-sm font-medium"
           style={{ background: tab === "estatisticas" ? C.garnetSoft : "transparent", color: tab === "estatisticas" ? C.garnet : C.muted }}
@@ -3020,7 +3291,35 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, onDeleteDonor, o
         </button>
       </div>
 
-      {tab === "estatisticas" ? (
+      {tab === "instituicoes" ? (
+        <div className="space-y-3">
+          {institutions.length === 0 && (
+            <p className="text-sm" style={{ color: C.muted }}>Ainda não há candidaturas de instituições.</p>
+          )}
+          {institutions.map((i) => (
+            <div key={i.id} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-bold text-sm" style={{ color: C.paper }}>{i.name}</span>
+                    <Badge tone={i.status === "aprovada" ? "green" : i.status === "rejeitada" ? "garnet" : "gold"}>{i.status}</Badge>
+                  </div>
+                  <div className="text-xs" style={{ color: C.muted }}>
+                    {INSTITUTION_KINDS[i.kind] || i.kind} · {i.municipio ? `${i.municipio}, ` : ""}{i.province}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: C.faint }}>
+                    Contacto: {i.contactPhone}{i.contactEmail ? ` · ${i.contactEmail}` : ""}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {i.status !== "aprovada" && <Btn variant="primary" onClick={() => onSetInstitutionStatus(i.id, "aprovada")}>Aprovar</Btn>}
+                  {i.status !== "rejeitada" && <Btn variant="ghost" onClick={() => onSetInstitutionStatus(i.id, "rejeitada")}>Rejeitar</Btn>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : tab === "estatisticas" ? (
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
             <StatCard label="Doadores" value={donors.length} tone="green" />
@@ -3230,6 +3529,7 @@ function Legal({ page, onNavigate }) {
           <Section title="Quem vê o quê">
             <p className="mb-2">O grupo sanguíneo, disponibilidade, província e cidade de um doador são visíveis a qualquer pessoa autenticada na plataforma, para permitir a correspondência com pedidos.</p>
             <p>O seu telefone só é revelado a outra pessoa quando ela clica explicitamente em "Revelar contacto". Essa acção fica registada (data e quem revelou) para prevenir abuso, com um limite diário de revelações por conta.</p>
+            <p>Se indicar uma instituição parceira no seu registo, essa instituição poderá ver o seu nome, grupo sanguíneo, localização e data da última doação, para acompanhar os seus doadores. Pode apagar o seu registo a qualquer momento.</p>
           </Section>
 
           <Section title="Onde ficam guardados os dados">
