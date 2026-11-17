@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
   Siren, Activity, Check, X, ChevronRight, Users, Radio, Send,
-  Flag, Lock, ShieldAlert, Heart, Bell, Eye, EyeOff
+  Flag, Lock, ShieldAlert, Heart, Bell, Eye, EyeOff,
+  ShieldCheck, Building2, ArrowRight, Clock, FileCheck2, UserCheck, Home
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
@@ -188,6 +189,12 @@ function institutionFromRow(row) {
     municipio: row.municipio,
     contactPhone: row.contact_phone,
     contactEmail: row.contact_email,
+    address: row.address || "",
+    responsibleName: row.responsible_name || "",
+    responsibleRole: row.responsible_role || "",
+    licenseNumber: row.license_number || "",
+    website: row.website || "",
+    rejectionReason: row.rejection_reason || "",
     status: row.status || "aprovada",
     createdAt: row.created_at ? new Date(row.created_at).getTime() : 0,
   };
@@ -293,16 +300,48 @@ const api = {
     list: (token) => sbFetch("/rest/v1/verified_requesters?select=*", { token }),
     add: (token, userId, institutionName) =>
       sbFetch("/rest/v1/verified_requesters", { method: "POST", token, body: { user_id: userId, institution_name: institutionName } }),
+    remove: (token, userId) =>
+      sbFetch(`/rest/v1/verified_requesters?user_id=eq.${userId}`, { method: "DELETE", token }),
   },
   revealContact: (token, donorId) =>
     sbFetch("/rest/v1/rpc/reveal_donor_contact", { method: "POST", token, body: { target_donor_id: donorId } }),
   institutions: {
     listPublic: () => sbFetch("/rest/v1/institutions_public?select=*&order=name"),
     listVisible: (token) => sbFetch("/rest/v1/institutions?select=*&order=created_at.desc", { token }),
-    apply: (token, row) =>
-      sbFetch("/rest/v1/institutions", { method: "POST", token, body: row, headers: { Prefer: "return=representation" } }),
-    setStatus: (token, id, status) =>
-      sbFetch(`/rest/v1/institutions?id=eq.${id}`, { method: "PATCH", token, body: { status } }),
+    // Os campos novos (responsável, morada, alvará/NIF, link, motivo) precisam do ficheiro
+    // supabase/institution_verification.sql. Se ainda não foi executado, volta aos campos antigos.
+    apply: async (token, row) => {
+      const post = (body) =>
+        sbFetch("/rest/v1/institutions", { method: "POST", token, body, headers: { Prefer: "return=representation" } });
+      try {
+        return await post(row);
+      } catch (err) {
+        if (!/column|schema cache|PGRST204/i.test(err.message)) throw err;
+        const { address, responsible_name, responsible_role, license_number, website, ...base } = row;
+        return post(base);
+      }
+    },
+    resubmit: async (token, id, row) => {
+      const patch = (body) =>
+        sbFetch(`/rest/v1/institutions?id=eq.${id}`, { method: "PATCH", token, body, headers: { Prefer: "return=representation" } });
+      try {
+        return await patch({ ...row, status: "pendente", rejection_reason: null });
+      } catch (err) {
+        if (!/column|schema cache|PGRST204/i.test(err.message)) throw err;
+        const { address, responsible_name, responsible_role, license_number, website, ...base } = row;
+        return patch({ ...base, status: "pendente" });
+      }
+    },
+    setStatus: async (token, id, status, reason) => {
+      const patch = (body) =>
+        sbFetch(`/rest/v1/institutions?id=eq.${id}`, { method: "PATCH", token, body });
+      try {
+        return await patch({ status, rejection_reason: status === "rejeitada" ? (reason || null) : null });
+      } catch (err) {
+        if (!/column|schema cache|PGRST204/i.test(err.message)) throw err;
+        return patch({ status });
+      }
+    },
   },
   pushSubscriptions: {
     upsert: (token, row) =>
@@ -581,6 +620,14 @@ function MaingaApp() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [checkingSession, setCheckingSession] = useState(true);
+  // texto de entrada (a história da Mainga): aparece na primeira visita deste dispositivo
+  const [showIntro, setShowIntro] = useState(() => {
+    try { return localStorage.getItem("mainga_intro_seen") !== "1"; } catch { return true; }
+  });
+  const finishIntro = () => {
+    setShowIntro(false);
+    try { localStorage.setItem("mainga_intro_seen", "1"); } catch { /* sem problema */ }
+  };
   const knownRequestIds = useRef(null);
   const [lang, setLang] = useState(() => {
     try { return localStorage.getItem("mainga_lang") || "pt"; } catch { return "pt"; }
@@ -949,11 +996,36 @@ function MaingaApp() {
     }
   };
 
-  const setInstitutionStatus = async (id, status) => {
+  const resubmitInstitution = async (id, form) => {
     try {
-      await api.institutions.setStatus(session.token, id, status);
-      setInstitutionsVisible((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
-      showToast(status === "aprovada" ? "Instituição aprovada." : "Instituição rejeitada.");
+      const rows = await api.institutions.resubmit(session.token, id, form);
+      const updated = rows && rows[0] ? institutionFromRow(rows[0]) : null;
+      setInstitutionsVisible((prev) => prev.map((i) => (i.id === id ? (updated || { ...i, status: "pendente", rejectionReason: "" }) : i)));
+      showToast("Candidatura reenviada. Vamos analisar de novo.", "gold");
+      return true;
+    } catch (err) {
+      showToast(`Erro: ${err.message}`, "garnet");
+      return false;
+    }
+  };
+
+  // aprovar uma instituição dá-lhe automaticamente o selo "Verificado" nos pedidos que publica;
+  // rejeitar ou revogar retira o selo
+  const setInstitutionStatus = async (id, status, reason) => {
+    const inst = institutionsVisible.find((i) => i.id === id);
+    try {
+      await api.institutions.setStatus(session.token, id, status, reason);
+      setInstitutionsVisible((prev) => prev.map((i) => (i.id === id ? { ...i, status, rejectionReason: status === "rejeitada" ? (reason || "") : "" } : i)));
+      if (inst?.userId) {
+        if (status === "aprovada") {
+          try { await api.verifiedRequesters.add(session.token, inst.userId, inst.name); } catch { /* já existia */ }
+          setVerifiedRequesters((prev) => ({ ...prev, [inst.userId]: inst.name }));
+        } else {
+          try { await api.verifiedRequesters.remove(session.token, inst.userId); } catch { /* sem selo para retirar */ }
+          setVerifiedRequesters((prev) => { const n = { ...prev }; delete n[inst.userId]; return n; });
+        }
+      }
+      showToast(status === "aprovada" ? "Instituição aprovada. Os pedidos dela já aparecem com o selo Verificado." : "Instituição rejeitada. Selo retirado.");
       loadData(true);
     } catch (err) {
       showToast(`Erro: ${err.message}`, "garnet");
@@ -1203,6 +1275,8 @@ function MaingaApp() {
         <div className="mt-6"><PulseLine w={140} /></div>
       </div>
 
+      {showIntro && <StoryIntro lang={lang} onDone={finishIntro} />}
+
       <header className="sticky top-0 z-20 backdrop-blur" style={{ background: "rgba(20,16,13,0.92)", borderBottom: `1px solid ${C.line}` }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -1211,20 +1285,15 @@ function MaingaApp() {
             </button>
           </div>
           <nav className="flex items-center gap-1 overflow-x-auto">
-            {[
-              ["feed", t(lang, "nav_feed"), Siren],
-              ["procurar", t(lang, "nav_search"), Search],
-              ["registar", t(lang, "nav_donor"), UserPlus],
-              ["publicar", t(lang, "nav_publish"), Radio],
-            ].map(([id, label, Icon]) => (
+            {NAV_ITEMS(lang).map(([id, label, Icon]) => (
               <button
                 key={id}
                 onClick={() => setView(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors"
                 style={{ background: view === id ? C.garnetSoft : "transparent", color: view === id ? C.garnet : C.muted }}
               >
                 <Icon size={14} />
-                <span className="hidden sm:inline">{label}</span>
+                <span>{label}</span>
               </button>
             ))}
             <button
@@ -1254,61 +1323,13 @@ function MaingaApp() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-12">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-28 sm:py-12">
         {loading ? (
           <div className="py-24 flex flex-col items-center gap-3" style={{ color: C.muted }}>
             <div style={{ animation: "pulseDot 1.2s ease-in-out infinite" }}>
               <PulseLine w={80} />
             </div>
             <span className="text-sm">{t(lang, "loading")}</span>
-          </div>
-        ) : !userRole && view === "feed" ? (
-          <div className="fadeUp max-w-md mx-auto text-center py-16">
-            <span className="text-2xl font-extrabold tracking-tight block mb-2" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
-              Bem-vindo à Mainga
-            </span>
-            <p className="text-sm mb-8" style={{ color: C.muted }}>
-              Para lhe mostrar o caminho certo logo de início, diga-nos porque está aqui.
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => chooseRole("doador")}
-                className="rounded-xl p-5 text-left transition-transform active:scale-[0.98]"
-                style={{ background: C.surface, border: `1px solid ${C.line}` }}
-              >
-                <div className="flex items-center gap-3">
-                  <Droplet size={22} color={C.garnet} />
-                  <div>
-                    <div className="font-bold text-sm" style={{ color: C.paper }}>Sou doador / quero doar</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.faint }}>Regista-te e aparece para quem precisar do teu grupo sanguíneo</div>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => chooseRole("pesquisador")}
-                className="rounded-xl p-5 text-left transition-transform active:scale-[0.98]"
-                style={{ background: C.surface, border: `1px solid ${C.line}` }}
-              >
-                <div className="flex items-center gap-3">
-                  <Search size={22} color={C.gold} />
-                  <div>
-                    <div className="font-bold text-sm" style={{ color: C.paper }}>Preciso de sangue / procuro um doador</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.faint }}>Procura doadores compatíveis ou publica um pedido urgente</div>
-                  </div>
-                </div>
-              </button>
-            </div>
-            <button
-              onClick={() => {
-                setUserRole("pesquisador");
-                try { localStorage.setItem("mainga_role", "pesquisador"); } catch {}
-                setView("feed");
-              }}
-              className="text-xs mt-6"
-              style={{ color: C.faint }}
-            >
-              Só quero ver os pedidos, sem escolher agora →
-            </button>
           </div>
         ) : (
           <>
@@ -1320,9 +1341,13 @@ function MaingaApp() {
                 currentUserId={session?.user?.id}
                 myBloodType={myDonor?.bloodType}
                 verifiedRequesters={verifiedRequesters}
+                institutions={institutionsPublic}
                 onCloseRequest={closeRequest}
                 onReportRequest={reportRequest}
-                goPublicar={() => setView("publicar")}
+                goPublicar={() => { chooseRole("pesquisador"); }}
+                goDoar={() => { chooseRole("doador"); }}
+                goProcurar={() => setView("procurar")}
+                goInstituicao={() => setView("instituicao")}
                 lang={lang}
               />
             )}
@@ -1335,7 +1360,7 @@ function MaingaApp() {
             )}
             {view === "instituicao" && (
               session
-                ? <Instituicao myInstitution={myInstitution} donors={donors} onApply={applyInstitution} onReveal={revealContact} />
+                ? <Instituicao myInstitution={myInstitution} donors={donors} onApply={applyInstitution} onResubmit={resubmitInstitution} onReveal={revealContact} onGoPublicar={() => setView("publicar")} />
                 : renderAuthForm("Entre com o seu email para candidatar a sua instituição.")
             )}
             {view === "registar" && (
@@ -1345,7 +1370,7 @@ function MaingaApp() {
             )}
             {view === "publicar" && (
               session
-                ? <Publicar donors={donors} onSubmit={addRequest} onDone={() => setView("feed")} showToast={showToast} />
+                ? <Publicar donors={donors} onSubmit={addRequest} onDone={() => setView("feed")} showToast={showToast} verifiedName={verifiedRequesters[session?.user?.id]} onGoInstituicao={() => setView("instituicao")} />
                 : renderAuthForm("Entre com o seu email para publicar um pedido.")
             )}
             {view === "admin" && (
@@ -1391,15 +1416,33 @@ function MaingaApp() {
           <button onClick={() => setView("instituicao")} style={{ color: C.line }} className="underline">
             para instituições
           </button>
-          <button onClick={() => { setUserRole(null); try { localStorage.removeItem("mainga_role"); } catch {} setView("feed"); }} style={{ color: C.line }} className="underline">
-            mudar o que procuro
+          <button onClick={() => setShowIntro(true)} style={{ color: C.line }} className="underline">
+            a nossa história
           </button>
         </div>
       </footer>
 
+      <nav
+        className="sm:hidden fixed bottom-0 inset-x-0 z-30 grid grid-cols-5 backdrop-blur"
+        style={{ background: "rgba(20,16,13,0.96)", borderTop: `1px solid ${C.line}`, paddingBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="Navegação principal"
+      >
+        {NAV_ITEMS(lang).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            onClick={() => setView(id)}
+            className="flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-semibold"
+            style={{ color: view === id ? C.garnet : C.muted }}
+          >
+            <Icon size={19} strokeWidth={view === id ? 2.6 : 2} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
       {toast && (
         <div
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg fadeUp flex items-center gap-2 max-w-[90vw]"
+          className="fixed bottom-24 sm:bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg fadeUp flex items-center gap-2 max-w-[90vw]"
           style={{ background: C.surfaceRaised, border: `1px solid ${C.line}`, color: C.paper }}
         >
           {toast.tone === "garnet" ? (
@@ -1410,6 +1453,148 @@ function MaingaApp() {
           {toast.msg}
         </div>
       )}
+    </div>
+  );
+}
+
+const NAV_ITEMS = (lang) => [
+  ["feed", lang === "en" ? "Home" : "Início", Home],
+  ["procurar", lang === "en" ? "Find donors" : "Procurar", Search],
+  ["registar", lang === "en" ? "Donate" : "Doar", Droplet],
+  ["publicar", lang === "en" ? "Request" : "Pedir", Siren],
+  ["instituicao", lang === "en" ? "Institutions" : "Instituições", Building2],
+];
+
+/* ---------- foto com fallback (se a imagem não carregar, fica um gradiente em vez de um buraco) ---------- */
+function Photo({ src, alt = "", className = "", style = {} }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <div className={className} style={{ ...style, background: `linear-gradient(135deg, ${C.garnetDeep}, ${C.surfaceRaised})` }} />;
+  }
+  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className={className} style={style} />;
+}
+
+/* ---------- TEXTO DE ENTRADA ---------- */
+const STORY = {
+  pt: {
+    kicker: "Antes de entrar",
+    paragraphs: [
+      "Em Angola, todos os dias, há uma família à porta de um hospital a fazer a mesma pergunta: «Alguém tem sangue?»",
+      "Há mães que ouviram «venha depressa» e já não chegaram a tempo. Filhos que cresceram sem o pai. Irmãos que passaram horas a ligar para toda a gente, a olhar para o telefone, a esperar por um doador que não apareceu a tempo.",
+      "Não faltou amor. Faltou ligação. O sangue existia, em pessoas saudáveis, a poucos quilómetros dali. Só que ninguém sabia.",
+      "A Mainga nasceu dessa dor. Das famílias que perderam, ou que quase perderam, alguém que amavam, só porque o sangue não chegou a tempo.",
+      "Aqui ninguém lucra. Não cobramos aos doadores, não cobramos às famílias, não vendemos sangue nem contactos. Tudo isto foi feito por uma única razão: que nenhuma família volte a perder alguém por falta de um doador.",
+      "Se doar, pode estar a salvar uma vida. Se precisar, não está sozinho. E se hoje não puder fazer nenhuma das duas coisas, partilhe um pedido. Também isso salva.",
+      "Obrigado por estar aqui. Por quem já partiu, e por quem ainda podemos salvar.",
+    ],
+    button: "Avançar",
+    sign: "Mainga · Doar sangue em Angola",
+  },
+  en: {
+    kicker: "Before you enter",
+    paragraphs: [
+      "In Angola, every single day, a family stands at a hospital door asking the same question: “Does anyone have blood?”",
+      "Some mothers heard “come quickly” and did not arrive in time. Some children grew up without a father. Some siblings spent hours calling everyone they knew, staring at the phone, waiting for a donor who did not arrive in time.",
+      "It was not a lack of love. It was a lack of connection. The blood existed, in healthy people, a few kilometres away. But nobody knew.",
+      "Mainga was born from that pain. From the families who lost, or nearly lost, someone they loved, only because blood did not arrive in time.",
+      "Nobody profits here. We do not charge donors, we do not charge families, we do not sell blood or contacts. All of this exists for one reason: so that no family loses someone for lack of a donor.",
+      "If you donate, you may be saving a life. If you need blood, you are not alone. And if today you can do neither, share a request. That saves lives too.",
+      "Thank you for being here. For those we lost, and for those we can still save.",
+    ],
+    button: "Continue",
+    sign: "Mainga · Donate blood in Angola",
+  },
+};
+
+function StoryIntro({ lang, onDone }) {
+  const story = STORY[lang === "en" ? "en" : "pt"];
+  const total = story.paragraphs.length;
+  const [shown, setShown] = useState(1);
+  const [leaving, setLeaving] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    if (shown >= total + 1) return;
+    // cada parágrafo tem tempo para ser lido; o botão só aparece depois do último
+    const len = story.paragraphs[Math.min(shown, total) - 1]?.length || 80;
+    const t = setTimeout(() => setShown((n) => n + 1), Math.min(5200, 1500 + len * 22));
+    return () => clearTimeout(t);
+  }, [shown, total, story]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+  }, [shown]);
+
+  const ready = shown >= total + 1;
+  const go = () => {
+    setLeaving(true);
+    setTimeout(onDone, 600);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] overflow-y-auto"
+      style={{ background: "#0C0907", opacity: leaving ? 0 : 1, transition: "opacity .6s ease" }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <Photo
+        src={HERO_PHOTOS[1].url}
+        className="fixed inset-0 w-full h-full object-cover"
+        style={{ filter: "blur(2px) brightness(0.28) saturate(0.8)" }}
+      />
+      <div className="fixed inset-0" style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(143,31,44,0.22), rgba(12,9,7,0.92) 70%)" }} />
+
+      <div className="relative min-h-full flex flex-col items-center px-6 py-12 sm:py-16">
+        <div className="w-full max-w-xl my-auto">
+          <div className="text-center mb-8">
+            <span className="text-xs uppercase tracking-[0.25em] block mb-3" style={{ color: C.gold, fontFamily: "'JetBrains Mono', monospace" }}>
+              {story.kicker}
+            </span>
+            <span className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.garnet }}>
+              Mainga <span style={{ fontSize: "0.7em" }} aria-hidden="true">🇦🇴</span>
+            </span>
+            <div className="flex justify-center mt-3"><PulseLine w={120} /></div>
+          </div>
+
+          <div className="space-y-5">
+            {story.paragraphs.map((text, i) => {
+              const last = i === total - 1;
+              const strong = i === 0 || i === 4 || last;
+              return (
+                <p
+                  key={i}
+                  className="leading-relaxed"
+                  style={{
+                    fontFamily: strong ? "'Bricolage Grotesque', sans-serif" : "'Inter', sans-serif",
+                    fontSize: strong ? "1.2rem" : "1.02rem",
+                    fontWeight: strong ? 600 : 400,
+                    color: strong ? C.paper : "rgba(245,237,228,0.82)",
+                    opacity: i < shown ? 1 : 0,
+                    transform: i < shown ? "translateY(0)" : "translateY(10px)",
+                    transition: "opacity 1.1s ease, transform 1.1s ease",
+                  }}
+                >
+                  {text}
+                </p>
+              );
+            })}
+          </div>
+
+          <div className="mt-10 text-center" style={{ minHeight: 90, opacity: ready ? 1 : 0, transition: "opacity 1s ease", pointerEvents: ready ? "auto" : "none" }}>
+            <button
+              onClick={go}
+              disabled={!ready}
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-base transition-transform active:scale-[0.97]"
+              style={{ background: C.garnet, color: "#fff", boxShadow: `0 0 0 6px ${C.garnetSoft}` }}
+            >
+              {story.button} <ArrowRight size={18} />
+            </button>
+            <p className="text-xs mt-5" style={{ color: C.faint }}>{story.sign}</p>
+          </div>
+          <div ref={bottomRef} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -1429,58 +1614,45 @@ const HERO_PHOTOS = [
   { url: "https://images.unsplash.com/photo-1576669801945-7a346954da5a?w=1200&q=80&auto=format&fit=crop", caption: "Uma conversa, uma vida ajudada" },
 ];
 
-function HeroPhotoBanner() {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setIndex((i) => (i + 1) % HERO_PHOTOS.length), 4500);
-    return () => clearInterval(t);
-  }, []);
-
+function VerifiedSeal({ name, compact }) {
   return (
-    <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 180, background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
-      {HERO_PHOTOS.map((photo, i) => (
-        <img
-          key={photo.url}
-          src={photo.url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: i === index ? 1 : 0, transition: "opacity 1s ease" }}
-        />
-      ))}
-      <div
-        className="absolute inset-0"
-        style={{ background: "linear-gradient(to top, rgba(20,16,13,0.92), rgba(20,16,13,0.15) 60%)" }}
-      />
-      <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
-        <p className="text-sm font-semibold" style={{ color: C.paper }}>{HERO_PHOTOS[index].caption}</p>
-        <div className="flex gap-1.5">
-          {HERO_PHOTOS.map((_, i) => (
-            <span
-              key={i}
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: i === index ? C.gold : "rgba(255,255,255,0.3)" }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+    <span
+      title={name ? `Instituição verificada pela Mainga: ${name}` : "Instituição verificada pela Mainga"}
+      className="inline-flex items-center gap-1 rounded-full font-bold"
+      style={{
+        background: C.greenSoft,
+        color: C.green,
+        border: `1px solid ${C.green}`,
+        padding: compact ? "1px 8px" : "2px 10px",
+        fontSize: compact ? 11 : 12,
+      }}
+    >
+      <ShieldCheck size={compact ? 12 : 14} strokeWidth={2.6} /> Verificado
+    </span>
   );
 }
 
-function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedRequesters, onCloseRequest, onReportRequest, goPublicar, lang }) {
-  const [filterProvince, setFilterProvince] = useState("Todas");
-  const open = requests.filter((r) => r.status === "aberto" && r.approved);
-  const URGENCY_ORDER = { critica: 0, alta: 1, moderada: 2 };
-  const shown = open
-    .filter((r) => filterProvince === "Todas" || r.province === filterProvince)
-    .sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency] || b.createdAt - a.createdAt);
-  const pendingMine = requests.filter((r) => r.status === "aberto" && !r.approved && r.requesterUserId === currentUserId);
+function HeroSection({ stats, lang, goPublicar, goDoar }) {
+  const slides = HERO_PHOTOS.slice(0, 6);
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIndex((i) => (i + 1) % slides.length), 5000);
+    return () => clearInterval(t);
+  }, [slides.length]);
 
   return (
-    <div className="fadeUp">
-      {/* hero */}
-      <div className="mb-8">
+    <section className="relative rounded-2xl overflow-hidden mb-6" style={{ minHeight: 440, background: C.surface, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.45)" }}>
+      {slides.map((photo, i) => (
+        <Photo
+          key={photo.url}
+          src={photo.url}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: i === index ? 1 : 0, transition: "opacity 1.2s ease", transform: i === index ? "scale(1.04)" : "scale(1)", transitionProperty: "opacity, transform", transitionDuration: "1.2s, 6s" }}
+        />
+      ))}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.97) 8%, rgba(20,16,13,0.55) 55%, rgba(20,16,13,0.25))" }} />
+
+      <div className="relative flex flex-col justify-end h-full p-5 sm:p-10" style={{ minHeight: 440 }}>
         <div className="flex items-center gap-2 mb-3" style={{ color: C.gold }}>
           <Activity size={16} />
           {stats.openRequests > 0 ? (
@@ -1488,50 +1660,79 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
               {stats.openRequests} pedido{stats.openRequests > 1 ? "s" : ""} de sangue em aberto agora
             </span>
           ) : (
-            <span className="text-xs italic" style={{ fontFamily: "'Inter', sans-serif" }}>
-              {t(lang, "hero_eyebrow_default")}
-            </span>
+            <span className="text-xs italic">{t(lang, "hero_eyebrow_default")}</span>
           )}
         </div>
-        <h1
-          className="text-3xl sm:text-4xl font-extrabold leading-tight mb-2"
-          style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
-        >
-          {t(lang, "hero_title_1")}{" "}
-          <span style={{ color: C.garnet }}>{t(lang, "hero_title_2")}</span>
+        <h1 className="text-4xl sm:text-5xl font-extrabold leading-[1.05] mb-3 max-w-2xl" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+          {t(lang, "hero_title_1")} <span style={{ color: C.garnet }}>{t(lang, "hero_title_2")}</span>
         </h1>
-        <p className="text-sm max-w-xl" style={{ color: C.muted }}>
-          {t(lang, "hero_stat_note")} <strong style={{ color: C.paper }}>360 {lang === "en" ? "thousand voluntary blood donors" : "mil doadores voluntários de sangue"}</strong>,
-          {" "}{t(lang, "hero_stat_note_end")}
+        <p className="text-sm sm:text-base max-w-xl mb-6" style={{ color: "rgba(245,237,228,0.85)" }}>
+          {t(lang, "hero_stat_note")} <strong style={{ color: C.paper }}>360 {lang === "en" ? "thousand voluntary blood donors" : "mil doadores voluntários de sangue"}</strong>, {t(lang, "hero_stat_note_end")}
         </p>
-        <div className="mt-4"><PulseLine w={160} /></div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>1</span>
-            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_1_t")}</span>
-          </div>
-          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_1_d")}</p>
+        <div className="flex flex-col sm:flex-row gap-3 max-w-xl">
+          <button
+            onClick={goDoar}
+            className="flex-1 inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl font-bold text-base transition-transform active:scale-[0.98]"
+            style={{ background: C.garnet, color: "#fff", boxShadow: "0 6px 20px rgba(198,41,61,0.4)" }}
+          >
+            <Droplet size={20} fill="#fff" /> {lang === "en" ? "I want to donate" : "Quero doar sangue"}
+          </button>
+          <button
+            onClick={goPublicar}
+            className="flex-1 inline-flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl font-bold text-base transition-transform active:scale-[0.98]"
+            style={{ background: C.gold, color: "#231506" }}
+          >
+            <Siren size={20} /> {lang === "en" ? "I need blood" : "Preciso de sangue"}
+          </button>
         </div>
-        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>2</span>
-            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_2_t")}</span>
-          </div>
-          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_2_d")}</p>
-        </div>
-        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: C.garnetSoft, color: C.garnet }}>3</span>
-            <span className="text-sm font-bold" style={{ color: C.paper }}>{t(lang, "howit_3_t")}</span>
-          </div>
-          <p className="text-xs" style={{ color: C.muted }}>{t(lang, "howit_3_d")}</p>
-        </div>
+        <a href="#pedidos" className="text-xs font-semibold mt-4 inline-flex items-center gap-1" style={{ color: C.muted }}>
+          {lang === "en" ? "See urgent requests" : "Ver pedidos urgentes agora"} <ArrowRight size={12} />
+        </a>
       </div>
+    </section>
+  );
+}
 
-      <HeroPhotoBanner />
+const HOW_STEPS = [
+  { icon: UserCheck, photo: 4 },
+  { icon: Radio, photo: 5 },
+  { icon: Heart, photo: 3 },
+];
+
+function SectionTitle({ kicker, title, children }) {
+  return (
+    <div className="mb-4">
+      {kicker && (
+        <div className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: C.gold, fontFamily: "'JetBrains Mono', monospace" }}>{kicker}</div>
+      )}
+      <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>{title}</h2>
+      {children && <p className="text-sm mt-1.5 max-w-xl" style={{ color: C.muted }}>{children}</p>}
+    </div>
+  );
+}
+
+function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedRequesters, institutions = [], onCloseRequest, onReportRequest, goPublicar, goDoar, goProcurar, goInstituicao, lang }) {
+  const [filterProvince, setFilterProvince] = useState("Todas");
+  const [onlyVerified, setOnlyVerified] = useState(false);
+  const open = requests.filter((r) => r.status === "aberto" && r.approved);
+  const URGENCY_ORDER = { critica: 0, alta: 1, moderada: 2 };
+  const isVerified = (r) => !!verifiedRequesters?.[r.requesterUserId];
+  const shown = open
+    .filter((r) => filterProvince === "Todas" || r.province === filterProvince)
+    .filter((r) => !onlyVerified || isVerified(r))
+    .sort((a, b) =>
+      URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency] ||
+      Number(isVerified(b)) - Number(isVerified(a)) ||
+      b.createdAt - a.createdAt
+    );
+  const pendingMine = requests.filter((r) => r.status === "aberto" && !r.approved && r.requesterUserId === currentUserId);
+  const verifiedCount = open.filter(isVerified).length;
+  const approvedInstitutions = institutions.filter((i) => i.status === "aprovada");
+
+  return (
+    <div className="fadeUp">
+      <HeroSection stats={stats} lang={lang} goPublicar={goPublicar} goDoar={goDoar} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
         <StatCard label={t(lang, "stat_open")} value={stats.openRequests} tone="garnet" />
@@ -1539,59 +1740,175 @@ function Feed({ requests, donors, stats, currentUserId, myBloodType, verifiedReq
         <StatCard label={t(lang, "stat_donors")} value={stats.totalDonors} tone="green" />
         <StatCard label={t(lang, "stat_provinces")} value={Object.keys(stats.byProvince).length} tone="gold" />
       </div>
-      <p className="text-xs mb-6" style={{ color: C.faint, minHeight: "1em" }}>
+      <p className="text-xs mb-10" style={{ color: C.faint, minHeight: "1em" }}>
         {stats.diasporaCount > 0
           ? `+ ${stats.diasporaCount} apoiante${stats.diasporaCount > 1 ? "s" : ""} na diáspora a ajudar a espalhar os pedidos`
           : ""}
       </p>
 
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <select
-          value={filterProvince}
-          onChange={(e) => setFilterProvince(e.target.value)}
-          className={inputClass}
-          style={{ ...inputStyle, width: "auto" }}
-        >
-          <option>Todas</option>
-          {PROVINCES.map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
-        <Btn variant="gold" icon={Radio} onClick={goPublicar}>
-          Publicar pedido urgente
-        </Btn>
-      </div>
+      {/* pedidos urgentes: o que importa vem logo a seguir às acções principais */}
+      <section id="pedidos" className="mb-14 scroll-mt-20">
+        <SectionTitle kicker={lang === "en" ? "Right now" : "Agora mesmo"} title={lang === "en" ? "Urgent blood requests" : "Pedidos urgentes de sangue"}>
+          {lang === "en" ? "Pick a province to see who needs help near you." : "Escolha a sua província para ver quem precisa de ajuda perto de si."}
+        </SectionTitle>
 
-      {pendingMine.length > 0 && (
-        <div className="mb-4 rounded-lg p-3 text-xs" style={{ background: C.goldSoft, color: C.gold }}>
-          Tem {pendingMine.length} pedido{pendingMine.length > 1 ? "s" : ""} à espera de aprovação de um
-          administrador antes de aparecer aqui para todos.
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={filterProvince}
+              onChange={(e) => setFilterProvince(e.target.value)}
+              className={inputClass}
+              style={{ ...inputStyle, width: "auto" }}
+              aria-label="Filtrar por província"
+            >
+              <option value="Todas">Todas as províncias</option>
+              {PROVINCES.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setOnlyVerified((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-semibold"
+              style={{
+                background: onlyVerified ? C.greenSoft : "transparent",
+                color: onlyVerified ? C.green : C.muted,
+                border: `1px solid ${onlyVerified ? C.green : C.line}`,
+              }}
+              aria-pressed={onlyVerified}
+            >
+              <ShieldCheck size={15} /> Só verificados{verifiedCount > 0 ? ` (${verifiedCount})` : ""}
+            </button>
+          </div>
+          <Btn variant="gold" icon={Radio} onClick={goPublicar}>
+            Publicar pedido urgente
+          </Btn>
         </div>
-      )}
 
-      {shown.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-xl"
-          style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px dashed ${C.line}`, color: C.muted }}
-        >
-          <p className="mb-1">Sem pedidos aqui neste momento.</p>
+        {pendingMine.length > 0 && (
+          <div className="mb-4 rounded-lg p-3 text-xs" style={{ background: C.goldSoft, color: C.gold }}>
+            Tem {pendingMine.length} pedido{pendingMine.length > 1 ? "s" : ""} à espera de aprovação de um
+            administrador antes de aparecer aqui para todos.
+          </div>
+        )}
+
+        {shown.length === 0 ? (
+          <div
+            className="text-center py-12 px-5 rounded-xl"
+            style={{ background: C.surface, border: `1px dashed ${C.line}`, color: C.muted }}
+          >
+            <Heart size={28} color={C.garnet} className="mx-auto mb-3" />
+            <p className="font-semibold mb-1" style={{ color: C.paper }}>
+              {onlyVerified ? "Nenhum pedido verificado neste momento." : "Sem pedidos aqui neste momento."}
+            </p>
+            <p className="text-sm mb-5 max-w-sm mx-auto">
+              Isso é bom sinal. Registe-se como doador para ser avisado assim que alguém precisar do seu grupo sanguíneo.
+            </p>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <Btn icon={Droplet} onClick={goDoar}>Quero ser doador</Btn>
+              {onlyVerified && <Btn variant="ghost" onClick={() => setOnlyVerified(false)}>Ver todos os pedidos</Btn>}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {shown.map((r) => (
+              <RequestCard
+                key={r.id}
+                r={r}
+                donors={donors}
+                isOwner={r.requesterUserId === currentUserId}
+                verifiedInstitution={verifiedRequesters?.[r.requesterUserId]}
+                myBloodType={myBloodType}
+                onClose={() => onCloseRequest(r.id)}
+                onReport={() => onReportRequest(r.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* como funciona, com fotos */}
+      <section className="mb-14">
+        <SectionTitle kicker={lang === "en" ? "How it works" : "Como funciona"} title={lang === "en" ? "Three steps. Minutes, not hours." : "Três passos. Minutos, não horas."} />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {HOW_STEPS.map((step, i) => {
+            const Icon = step.icon;
+            return (
+              <div key={i} className="rounded-xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                <div className="relative h-36">
+                  <Photo src={HERO_PHOTOS[step.photo].url} className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(29,22,19,1), rgba(29,22,19,0.1))" }} />
+                  <span className="absolute left-4 bottom-3 w-9 h-9 rounded-full flex items-center justify-center font-bold" style={{ background: C.garnet, color: "#fff" }}>{i + 1}</span>
+                  <Icon size={20} color={C.paper} className="absolute right-4 bottom-4" />
+                </div>
+                <div className="p-4">
+                  <div className="font-bold text-sm mb-1" style={{ color: C.paper }}>{t(lang, `howit_${i + 1}_t`)}</div>
+                  <p className="text-xs" style={{ color: C.muted }}>{t(lang, `howit_${i + 1}_d`)}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      ) : (
-        <div className="space-y-3">
-          {shown.map((r) => (
-            <RequestCard
-              key={r.id}
-              r={r}
-              donors={donors}
-              isOwner={r.requesterUserId === currentUserId}
-              verifiedInstitution={verifiedRequesters?.[r.requesterUserId]}
-              myBloodType={myBloodType}
-              onClose={() => onCloseRequest(r.id)}
-              onReport={() => onReportRequest(r.id)}
-            />
+      </section>
+
+      {/* galeria */}
+      <section className="mb-14">
+        <SectionTitle kicker={lang === "en" ? "Why it matters" : "Porque importa"} title={lang === "en" ? "Behind every donation, a person." : "Por trás de cada doação, uma pessoa."} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 9, 10].map((n, i) => (
+            <div key={n} className={`relative rounded-xl overflow-hidden ${i === 0 ? "col-span-2 md:col-span-2 md:row-span-2" : ""}`} style={{ minHeight: i === 0 ? 260 : 130, border: `1px solid ${C.line}` }}>
+              <Photo src={HERO_PHOTOS[n].url} className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.9), rgba(20,16,13,0) 60%)" }} />
+              <p className="absolute left-3 right-3 bottom-3 text-xs sm:text-sm font-semibold" style={{ color: C.paper }}>{HERO_PHOTOS[n].caption}</p>
+            </div>
           ))}
         </div>
-      )}
+        <div className="mt-4 flex gap-2 flex-wrap">
+          <Btn variant="subtle" icon={Search} onClick={goProcurar}>Procurar doadores compatíveis</Btn>
+        </div>
+      </section>
+
+      {/* instituições e o selo */}
+      <section className="mb-14 rounded-2xl p-5 sm:p-7" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+        <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+            <ShieldCheck size={28} color={C.green} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl sm:text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              O que significa o selo <span style={{ color: C.green }}>Verificado</span>?
+            </h2>
+            <p className="text-sm mb-4" style={{ color: C.muted }}>
+              Quando vir este selo num pedido, quem o publicou é um hospital, banco de sangue, clínica ou associação cuja identidade a equipa da Mainga confirmou (responsável, contactos e documento ou página oficial). Pode ir com mais confiança.
+            </p>
+            {approvedInstitutions.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {approvedInstitutions.slice(0, 8).map((i) => (
+                  <span key={i.id} className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: C.greenSoft, color: C.green }}>
+                    <ShieldCheck size={12} /> {i.name}
+                  </span>
+                ))}
+                {approvedInstitutions.length > 8 && <span className="text-xs self-center" style={{ color: C.faint }}>+ {approvedInstitutions.length - 8}</span>}
+              </div>
+            )}
+            <Btn variant="ghost" icon={Building2} onClick={goInstituicao}>Sou uma instituição: quero o selo</Btn>
+          </div>
+        </div>
+      </section>
+
+      {/* convite final */}
+      <section className="relative rounded-2xl overflow-hidden text-center" style={{ border: `1px solid ${C.line}` }}>
+        <Photo src={HERO_PHOTOS[3].url} className="absolute inset-0 w-full h-full object-cover" style={{ filter: "brightness(0.35)" }} />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(143,31,44,0.55), rgba(20,16,13,0.6))" }} />
+        <div className="relative px-5 py-12 sm:py-14">
+          <h2 className="text-2xl sm:text-3xl font-extrabold mb-2" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+            {lang === "en" ? "Your blood type may be the one someone is waiting for." : "O seu grupo sanguíneo pode ser o que alguém está à espera."}
+          </h2>
+          <p className="text-sm mb-6 max-w-md mx-auto" style={{ color: "rgba(245,237,228,0.85)" }}>
+            {lang === "en" ? "Registering takes about two minutes and it is free." : "Registar-se demora cerca de dois minutos e é gratuito."}
+          </p>
+          <Btn icon={Droplet} onClick={goDoar}>{lang === "en" ? "Register as a donor" : "Registar-me como doador"}</Btn>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1638,7 +1955,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
   return (
     <div
       className="rounded-xl p-4 sm:p-5 fadeUp"
-      style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${flagged ? C.gold : isCompatibleForMe ? C.garnet : C.line}` }}
+      style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${flagged ? C.gold : isCompatibleForMe ? C.garnet : verifiedInstitution ? C.green : C.line}`, borderLeft: verifiedInstitution && !flagged ? `4px solid ${C.green}` : undefined }}
     >
       {flagged && (
         <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold" style={{ color: C.gold }}>
@@ -1668,13 +1985,7 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
               <span className="font-bold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
                 {r.place}
               </span>
-              {verifiedInstitution && (
-                <span title={`Instituição verificada: ${verifiedInstitution}`}>
-                  <Badge tone="green">
-                    <Check size={10} /> Verificado
-                  </Badge>
-                </span>
-              )}
+              {verifiedInstitution && <VerifiedSeal name={verifiedInstitution} />}
               <Badge tone={urgencyTone}>
                 {r.urgency === "critica" ? "Crítica" : r.urgency === "alta" ? "Alta" : "Moderada"}
               </Badge>
@@ -1689,6 +2000,11 @@ function RequestCard({ r, donors, isOwner, verifiedInstitution, myBloodType, onC
             </div>
             <div className="text-xs mt-1.5" style={{ color: C.green }}>
               {matches.length} doador{matches.length !== 1 ? "es" : ""} compatíve{matches.length !== 1 ? "is" : ""} na província
+            </div>
+            <div className="text-[11px] mt-1.5 flex items-center gap-1" style={{ color: verifiedInstitution ? C.green : C.faint }}>
+              {verifiedInstitution
+                ? <><ShieldCheck size={11} /> Publicado por {verifiedInstitution}, instituição verificada pela Mainga</>
+                : "Publicado por um particular ou instituição ainda não verificada. Confirme com o hospital antes de se deslocar."}
             </div>
           </div>
         </div>
@@ -2850,7 +3166,7 @@ function Registar({ onSubmit, existing, onDelete, onEnablePush, showToast, insti
 }
 
 /* ---------- PUBLICAR ---------- */
-function Publicar({ donors, onSubmit, onDone, showToast }) {
+function Publicar({ donors, onSubmit, onDone, showToast, verifiedName, onGoInstituicao }) {
   const [place, setPlace] = useState("");
   const [placeMode, setPlaceMode] = useState("lista"); // "lista" | "outro"
   const [bloodType, setBloodType] = useState(null);
@@ -2967,6 +3283,24 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
       <p className="text-sm mb-6" style={{ color: C.muted }}>
         Hospital, clínica ou família: qualquer pessoa pode publicar uma necessidade.
       </p>
+
+      {verifiedName ? (
+        <div className="mb-6 rounded-xl p-3.5 flex items-center gap-3" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+          <ShieldCheck size={22} color={C.green} className="shrink-0" />
+          <div className="text-xs" style={{ color: C.paper }}>
+            Vai publicar como <strong>{verifiedName}</strong>. O seu pedido aparece com o selo <strong style={{ color: C.green }}>Verificado</strong> e no topo da lista.
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="text-xs flex-1 min-w-[200px]" style={{ color: C.muted }}>
+            É um hospital, banco de sangue ou associação? Com o selo <strong style={{ color: C.green }}>Verificado</strong> os seus pedidos ganham mais confiança e destaque.
+          </div>
+          <button type="button" onClick={onGoInstituicao} className="text-xs font-semibold inline-flex items-center gap-1" style={{ color: C.green }}>
+            Pedir o selo <ArrowRight size={12} />
+          </button>
+        </div>
+      )}
 
       <div>
         <UseMyLocationButton showToast={showToast} onFound={(prov) => setProvince(prov)} />
@@ -3165,91 +3499,225 @@ function ResetPassword({ onSave }) {
 }
 
 /* ---------- ADMIN ---------- */
-function Instituicao({ myInstitution, donors, onApply, onReveal }) {
-  const [form, setForm] = useState({ name: "", kind: "banco_de_sangue", province: "Luanda", municipio: "", contact_phone: "", contact_email: "" });
+function Stepper({ step, rejected }) {
+  const steps = [
+    ["Candidatura enviada", FileCheck2],
+    ["A equipa verifica os dados", Clock],
+    [rejected ? "Não aprovada" : "Selo Verificado", rejected ? X : ShieldCheck],
+  ];
+  return (
+    <div className="flex items-start justify-between gap-2 mb-8">
+      {steps.map(([label, Icon], i) => {
+        const done = i < step;
+        const current = i === step;
+        const color = rejected && i === 2 ? C.garnet : done || (current && i === 2) ? C.green : current ? C.gold : C.faint;
+        return (
+          <div key={label} className="flex-1 flex flex-col items-center text-center relative">
+            {i > 0 && (
+              <div className="absolute top-5 right-1/2 w-full h-0.5" style={{ background: i <= step ? C.green : C.line, zIndex: 0 }} />
+            )}
+            <div className="relative z-10 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.surface, border: `2px solid ${color}`, color }}>
+              {done ? <Check size={18} /> : <Icon size={18} />}
+            </div>
+            <span className="text-[11px] mt-2 font-semibold leading-tight" style={{ color: i <= step ? C.paper : C.faint }}>{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const EMPTY_INSTITUTION_FORM = {
+  name: "", kind: "banco_de_sangue", province: "Luanda", municipio: "", address: "",
+  responsible_name: "", responsible_role: "", contact_phone: "", contact_email: "",
+  license_number: "", website: "", declaration: false,
+};
+
+function Instituicao({ myInstitution, donors, onApply, onResubmit, onReveal, onGoPublicar }) {
+  const [form, setForm] = useState(() =>
+    myInstitution
+      ? {
+          ...EMPTY_INSTITUTION_FORM,
+          name: myInstitution.name, kind: myInstitution.kind, province: myInstitution.province,
+          municipio: myInstitution.municipio || "", address: myInstitution.address,
+          responsible_name: myInstitution.responsibleName, responsible_role: myInstitution.responsibleRole,
+          contact_phone: myInstitution.contactPhone || "", contact_email: myInstitution.contactEmail || "",
+          license_number: myInstitution.licenseNumber, website: myInstitution.website,
+        }
+      : EMPTY_INSTITUTION_FORM
+  );
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [revealed, setRevealed] = useState({});
+  const [editing, setEditing] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async () => {
-    if (form.name.trim().length < 3) return setError("Indique o nome da instituição.");
-    if (form.contact_phone.trim().length < 6) return setError("Indique um telefone de contacto.");
+    if (form.name.trim().length < 3) return setError("Indique o nome completo da instituição.");
+    if (form.responsible_name.trim().length < 3) return setError("Indique o nome do responsável que nos vai atender.");
+    if (form.contact_phone.trim().length < 6) return setError("Indique um telefone de contacto onde possamos ligar.");
+    if (!form.license_number.trim() && !form.website.trim()) {
+      return setError("Para confirmarmos que a instituição é real, indique o NIF/alvará ou o link de uma página oficial (site, Facebook, Instagram).");
+    }
+    if (!form.declaration) return setError("Confirme a declaração no fim do formulário.");
     setError("");
     setSending(true);
-    await onApply({
+    const row = {
       name: form.name.trim(),
       kind: form.kind,
       province: form.province,
       municipio: form.municipio.trim() || null,
+      address: form.address.trim() || null,
+      responsible_name: form.responsible_name.trim(),
+      responsible_role: form.responsible_role.trim() || null,
       contact_phone: form.contact_phone.trim(),
       contact_email: form.contact_email.trim() || null,
-    });
+      license_number: form.license_number.trim() || null,
+      website: form.website.trim() || null,
+    };
+    const ok = myInstitution ? await onResubmit(myInstitution.id, row) : await onApply(row);
     setSending(false);
+    if (ok) setEditing(false);
   };
+
+  const renderForm = () => (
+    <>
+      <div className="rounded-xl p-4 mb-6" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+        <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: C.gold, fontFamily: "'JetBrains Mono', monospace" }}>O que vai precisar</div>
+        <ul className="text-xs space-y-1.5" style={{ color: C.muted }}>
+          <li className="flex gap-2"><Check size={13} color={C.green} className="shrink-0 mt-0.5" /> Nome e contacto de um responsável que possamos ligar</li>
+          <li className="flex gap-2"><Check size={13} color={C.green} className="shrink-0 mt-0.5" /> O NIF/alvará, ou o link de uma página oficial da instituição</li>
+          <li className="flex gap-2"><Check size={13} color={C.green} className="shrink-0 mt-0.5" /> Cerca de 3 minutos. A resposta chega aqui, nesta página</li>
+        </ul>
+      </div>
+
+      <h3 className="text-sm font-bold mb-3" style={{ color: C.paper }}>1. A instituição</h3>
+      <Field label="Nome da instituição">
+        <input value={form.name} onChange={(e) => set("name", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Banco de Sangue do Hospital X" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Tipo">
+          <select value={form.kind} onChange={(e) => set("kind", e.target.value)} className={inputClass} style={inputStyle}>
+            {Object.entries(INSTITUTION_KINDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        </Field>
+        <Field label="Província">
+          <select value={form.province} onChange={(e) => set("province", e.target.value)} className={inputClass} style={inputStyle}>
+            {PROVINCES.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Município (opcional)">
+          <input value={form.municipio} onChange={(e) => set("municipio", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
+        </Field>
+        <Field label="Morada (opcional)">
+          <input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputClass} style={inputStyle} placeholder="Rua / bairro" />
+        </Field>
+      </div>
+
+      <h3 className="text-sm font-bold mb-3 mt-2" style={{ color: C.paper }}>2. Quem responde pela instituição</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome do responsável">
+          <input value={form.responsible_name} onChange={(e) => set("responsible_name", e.target.value)} className={inputClass} style={inputStyle} placeholder="Nome completo" />
+        </Field>
+        <Field label="Cargo (opcional)">
+          <input value={form.responsible_role} onChange={(e) => set("responsible_role", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Directora clínica" />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Telefone">
+          <input value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} className={inputClass} style={inputStyle} placeholder="+244 9XX XXX XXX" inputMode="tel" />
+        </Field>
+        <Field label="Email (opcional)">
+          <input value={form.contact_email} onChange={(e) => set("contact_email", e.target.value)} className={inputClass} style={inputStyle} placeholder="instituicao@email.com" inputMode="email" />
+        </Field>
+      </div>
+
+      <h3 className="text-sm font-bold mb-3 mt-2" style={{ color: C.paper }}>3. Prova de que existe</h3>
+      <p className="text-xs mb-3" style={{ color: C.faint }}>Basta um dos dois, mas ajuda se indicar ambos.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="NIF ou nº de alvará">
+          <input value={form.license_number} onChange={(e) => set("license_number", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: 5417XXXXXX" />
+        </Field>
+        <Field label="Site ou página oficial">
+          <input value={form.website} onChange={(e) => set("website", e.target.value)} className={inputClass} style={inputStyle} placeholder="https://" inputMode="url" />
+        </Field>
+      </div>
+
+      <label className="flex items-start gap-2.5 mb-4 cursor-pointer">
+        <input type="checkbox" checked={form.declaration} onChange={(e) => set("declaration", e.target.checked)} className="mt-0.5" style={{ accentColor: C.green }} />
+        <span className="text-xs" style={{ color: C.muted }}>
+          Declaro que os dados são verdadeiros e que represento esta instituição. Sei que o selo pode ser retirado se os pedidos publicados não forem reais.
+        </span>
+      </label>
+
+      <p className="text-xs mb-4" style={{ color: C.faint }}>
+        Estes dados ficam privados: só a equipa da Mainga os vê, para confirmar a identidade antes de dar o selo.
+      </p>
+      {error && <p className="text-xs mb-3" style={{ color: C.garnet }}>{error}</p>}
+      <Btn full onClick={submit} disabled={sending} icon={ShieldCheck}>
+        {sending ? "A enviar…" : myInstitution ? "Reenviar candidatura" : "Enviar candidatura"}
+      </Btn>
+    </>
+  );
 
   if (!myInstitution) {
     return (
       <div className="fadeUp max-w-lg mx-auto">
-        <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-          Para instituições
-        </h2>
-        <p className="text-sm mb-6" style={{ color: C.muted }}>
-          Bancos de sangue, hospitais e associações podem tornar-se instituições parceiras da Mainga. Depois de aprovada, a vossa instituição aparece na lista de registo dos doadores, e passam a ver os doadores que vos escolherem.
-        </p>
-        <Field label="Nome da instituição">
-          <input value={form.name} onChange={(e) => set("name", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Banco de Sangue do Hospital X" />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Tipo">
-            <select value={form.kind} onChange={(e) => set("kind", e.target.value)} className={inputClass} style={inputStyle}>
-              {Object.entries(INSTITUTION_KINDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-            </select>
-          </Field>
-          <Field label="Província">
-            <select value={form.province} onChange={(e) => set("province", e.target.value)} className={inputClass} style={inputStyle}>
-              {PROVINCES.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </Field>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+            <Building2 size={24} color={C.green} />
+          </div>
+          <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>Para instituições</h2>
         </div>
-        <Field label="Município (opcional)">
-          <input value={form.municipio} onChange={(e) => set("municipio", e.target.value)} className={inputClass} style={inputStyle} placeholder="Ex: Talatona" />
-        </Field>
-        <Field label="Telefone de contacto">
-          <input value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} className={inputClass} style={inputStyle} placeholder="+244 9XX XXX XXX" />
-        </Field>
-        <Field label="Email de contacto (opcional)">
-          <input value={form.contact_email} onChange={(e) => set("contact_email", e.target.value)} className={inputClass} style={inputStyle} placeholder="instituicao@email.com" />
-        </Field>
-        <p className="text-xs mb-4" style={{ color: C.faint }}>
-          Estes contactos ficam privados: só a Mainga os vê, para confirmar que a instituição é real antes de a aprovar.
+        <p className="text-sm mb-6" style={{ color: C.muted }}>
+          Bancos de sangue, hospitais, clínicas e associações podem tornar-se parceiros da Mainga. Depois de verificados, os vossos pedidos aparecem com o selo <VerifiedSeal compact /> e no topo da lista, e a instituição fica disponível para os doadores escolherem ao registar-se.
         </p>
-        {error && <p className="text-xs mb-3" style={{ color: C.garnet }}>{error}</p>}
-        <Btn full onClick={submit} disabled={sending}>{sending ? "A enviar…" : "Candidatar instituição"}</Btn>
+        <Stepper step={0} />
+        {renderForm()}
       </div>
     );
   }
 
   if (myInstitution.status === "pendente") {
     return (
-      <div className="fadeUp max-w-md mx-auto text-center py-16">
-        <ShieldAlert size={32} color={C.gold} className="mx-auto mb-4" />
-        <h2 className="text-xl font-extrabold mb-2">Candidatura em análise</h2>
-        <p className="text-sm" style={{ color: C.muted }}>
-          Recebemos a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>. Vamos confirmar os dados e dar resposta em breve.
-        </p>
+      <div className="fadeUp max-w-md mx-auto py-8">
+        <Stepper step={1} />
+        <div className="text-center">
+          <h2 className="text-xl font-extrabold mb-2">Candidatura em análise</h2>
+          <p className="text-sm mb-5" style={{ color: C.muted }}>
+            Recebemos a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>. A equipa vai ligar para {myInstitution.responsibleName ? <strong style={{ color: C.paper }}>{myInstitution.responsibleName}</strong> : "o contacto indicado"} e confirmar os dados. Volte a esta página para ver a resposta.
+          </p>
+        </div>
+        <div className="rounded-xl p-4 text-xs" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>
+          Enquanto espera, mantenha o telefone <strong style={{ color: C.paper }}>{myInstitution.contactPhone}</strong> atendível. Os pedidos que publicar agora ainda não têm o selo.
+        </div>
       </div>
     );
   }
 
   if (myInstitution.status === "rejeitada") {
     return (
-      <div className="fadeUp max-w-md mx-auto text-center py-16">
-        <X size={32} color={C.garnet} className="mx-auto mb-4" />
-        <h2 className="text-xl font-extrabold mb-2">Candidatura não aprovada</h2>
-        <p className="text-sm" style={{ color: C.muted }}>
-          Não foi possível aprovar a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>. Se acha que houve engano, contacte a equipa da Mainga.
-        </p>
+      <div className="fadeUp max-w-lg mx-auto py-8">
+        <Stepper step={2} rejected />
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-extrabold mb-2">Candidatura não aprovada</h2>
+          <p className="text-sm" style={{ color: C.muted }}>
+            Não foi possível aprovar a candidatura de <strong style={{ color: C.paper }}>{myInstitution.name}</strong>.
+          </p>
+        </div>
+        {myInstitution.rejectionReason && (
+          <div className="rounded-xl p-4 mb-5 text-sm" style={{ background: C.garnetSoft, border: `1px solid ${C.garnet}`, color: C.paper }}>
+            <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: C.garnet, fontFamily: "'JetBrains Mono', monospace" }}>Motivo</div>
+            {myInstitution.rejectionReason}
+          </div>
+        )}
+        {editing ? (
+          renderForm()
+        ) : (
+          <Btn full variant="ghost" onClick={() => setEditing(true)}>Corrigir os dados e reenviar</Btn>
+        )}
       </div>
     );
   }
@@ -3269,10 +3737,19 @@ function Instituicao({ myInstitution, donors, onApply, onReveal }) {
     <div className="fadeUp max-w-3xl mx-auto">
       <div className="flex items-center gap-2 flex-wrap mb-1">
         <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>{myInstitution.name}</h2>
-        <Badge tone="green"><Check size={10} /> Instituição parceira</Badge>
+        <VerifiedSeal />
+      </div>
+      <div className="rounded-xl p-4 my-5 flex items-center justify-between gap-3 flex-wrap" style={{ background: C.greenSoft, border: `1px solid ${C.green}` }}>
+        <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+          <ShieldCheck size={26} color={C.green} className="shrink-0" />
+          <div className="text-xs" style={{ color: C.paper }}>
+            A vossa instituição está <strong>verificada</strong>. Os pedidos que publicarem aparecem com o selo e no topo da lista.
+          </div>
+        </div>
+        <Btn variant="gold" icon={Radio} onClick={onGoPublicar}>Publicar pedido verificado</Btn>
       </div>
       <p className="text-sm mb-6" style={{ color: C.muted }}>
-        Aqui aparecem os doadores que escolheram a vossa instituição ao registarem-se na Mainga. Peça aos vossos doadores para se registarem em doarmainga.com e escolherem "{myInstitution.name}".
+        Aqui aparecem os doadores que escolheram a vossa instituição ao registarem-se na Mainga. Peçam aos vossos doadores para se registarem em doarmainga.com e escolherem "{myInstitution.name}".
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
@@ -3324,6 +3801,98 @@ function Instituicao({ myInstitution, donors, onApply, onReveal }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function InstitutionReview({ institutions, onSetStatus }) {
+  const [filter, setFilter] = useState("pendente");
+  const [rejecting, setRejecting] = useState(null); // id
+  const [reason, setReason] = useState("");
+  const counts = { pendente: 0, aprovada: 0, rejeitada: 0 };
+  institutions.forEach((i) => { counts[i.status] = (counts[i.status] || 0) + 1; });
+  const list = institutions.filter((i) => i.status === filter).sort((a, b) => b.createdAt - a.createdAt);
+  const FILTERS = [["pendente", "Por analisar"], ["aprovada", "Verificadas"], ["rejeitada", "Rejeitadas"]];
+
+  const check = (ok, label) => (
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full" style={{ background: ok ? C.greenSoft : "rgba(166,150,141,0.12)", color: ok ? C.green : C.faint }}>
+      {ok ? <Check size={10} /> : <X size={10} />} {label}
+    </span>
+  );
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {FILTERS.map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setFilter(id)}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ background: filter === id ? C.surfaceRaised : "transparent", color: filter === id ? C.paper : C.muted, border: `1px solid ${filter === id ? C.garnet : C.line}` }}
+          >
+            {label} ({counts[id] || 0})
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 && <p className="text-sm py-8 text-center" style={{ color: C.muted }}>Nada nesta lista.</p>}
+
+      <div className="space-y-3">
+        {list.map((i) => (
+          <div key={i.id} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="font-bold" style={{ color: C.paper }}>{i.name}</span>
+              {i.status === "aprovada" && <VerifiedSeal compact />}
+              {i.status === "pendente" && <Badge tone="gold">por analisar</Badge>}
+              {i.status === "rejeitada" && <Badge tone="garnet">rejeitada</Badge>}
+            </div>
+            <div className="text-xs mb-3" style={{ color: C.muted }}>
+              {INSTITUTION_KINDS[i.kind] || i.kind} · {i.municipio ? `${i.municipio}, ` : ""}{i.province}{i.address ? ` · ${i.address}` : ""}
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3" style={{ color: C.muted }}>
+              <div>Responsável: <span style={{ color: C.paper }}>{i.responsibleName || "não indicado"}{i.responsibleRole ? ` (${i.responsibleRole})` : ""}</span></div>
+              <div>Telefone: <a href={`tel:${i.contactPhone}`} style={{ color: C.gold }}>{i.contactPhone}</a>{i.contactEmail ? ` · ${i.contactEmail}` : ""}</div>
+              <div>NIF/alvará: <span style={{ color: C.paper }}>{i.licenseNumber || "não indicado"}</span></div>
+              <div className="truncate">Página: {i.website ? <a href={/^https?:/i.test(i.website) ? i.website : `https://${i.website}`} target="_blank" rel="noopener noreferrer" style={{ color: C.gold }}>{i.website}</a> : <span style={{ color: C.paper }}>não indicada</span>}</div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {check(!!i.responsibleName, "responsável")}
+              {check(!!i.licenseNumber, "NIF/alvará")}
+              {check(!!i.website, "página oficial")}
+            </div>
+
+            {i.status === "rejeitada" && i.rejectionReason && (
+              <div className="text-xs mb-3" style={{ color: C.garnet }}>Motivo: {i.rejectionReason}</div>
+            )}
+
+            {rejecting === i.id ? (
+              <div>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  placeholder="Motivo (a instituição vai ver isto). Ex: não conseguimos confirmar o NIF."
+                  className={inputClass}
+                  style={inputStyle}
+                />
+                <div className="flex gap-2 mt-2">
+                  <Btn variant="primary" onClick={() => { onSetStatus(i.id, "rejeitada", reason.trim()); setRejecting(null); setReason(""); }}>Confirmar rejeição</Btn>
+                  <Btn variant="ghost" onClick={() => { setRejecting(null); setReason(""); }}>Cancelar</Btn>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {i.status !== "aprovada" && <Btn variant="primary" icon={ShieldCheck} onClick={() => onSetStatus(i.id, "aprovada")}>Aprovar e dar selo</Btn>}
+                {i.status !== "rejeitada" && (
+                  <Btn variant="ghost" onClick={() => setRejecting(i.id)}>{i.status === "aprovada" ? "Retirar selo" : "Rejeitar"}</Btn>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -3409,33 +3978,7 @@ function Admin({ isAdmin, donors, requests, verifiedRequesters, institutions = [
       </div>
 
       {tab === "instituicoes" ? (
-        <div className="space-y-3">
-          {institutions.length === 0 && (
-            <p className="text-sm" style={{ color: C.muted }}>Ainda não há candidaturas de instituições.</p>
-          )}
-          {institutions.map((i) => (
-            <div key={i.id} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-bold text-sm" style={{ color: C.paper }}>{i.name}</span>
-                    <Badge tone={i.status === "aprovada" ? "green" : i.status === "rejeitada" ? "garnet" : "gold"}>{i.status}</Badge>
-                  </div>
-                  <div className="text-xs" style={{ color: C.muted }}>
-                    {INSTITUTION_KINDS[i.kind] || i.kind} · {i.municipio ? `${i.municipio}, ` : ""}{i.province}
-                  </div>
-                  <div className="text-xs mt-0.5" style={{ color: C.faint }}>
-                    Contacto: {i.contactPhone}{i.contactEmail ? ` · ${i.contactEmail}` : ""}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {i.status !== "aprovada" && <Btn variant="primary" onClick={() => onSetInstitutionStatus(i.id, "aprovada")}>Aprovar</Btn>}
-                  {i.status !== "rejeitada" && <Btn variant="ghost" onClick={() => onSetInstitutionStatus(i.id, "rejeitada")}>Rejeitar</Btn>}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <InstitutionReview institutions={institutions} onSetStatus={onSetInstitutionStatus} />
       ) : tab === "estatisticas" ? (
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
