@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Droplet, MapPin, Phone, MessageCircle, Search, UserPlus,
   Siren, Activity, Check, X, ChevronRight, Users, Radio, Send,
-  Flag, Lock, ShieldAlert, Heart, Bell
+  Flag, Lock, ShieldAlert, Heart, Bell, Eye, EyeOff
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import L from "leaflet";
@@ -104,12 +104,31 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 const authApi = {
-  sendCode: (email, createUser) => sbFetch("/auth/v1/otp", { method: "POST", body: { email, create_user: createUser } }),
-  verifyCode: (email, token, type) => sbFetch("/auth/v1/verify", { method: "POST", body: { type, email, token } }),
+  signUp: (email, password) =>
+    sbFetch("/auth/v1/signup", { method: "POST", body: { email, password } }),
+  signIn: (email, password) =>
+    sbFetch("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password } }),
+  recover: (email) =>
+    sbFetch(`/auth/v1/recover?redirect_to=${encodeURIComponent(window.location.origin)}`, {
+      method: "POST",
+      body: { email },
+    }),
+  updatePassword: (token, password) =>
+    sbFetch("/auth/v1/user", { method: "PUT", token, body: { password } }),
   getUser: (token) => sbFetch("/auth/v1/user", { token }),
   refreshToken: (refreshToken) =>
     sbFetch("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: { refresh_token: refreshToken } }),
 };
+
+function translateAuthError(msg = "") {
+  if (/invalid login credentials/i.test(msg)) return "Email ou senha incorretos.";
+  if (/already registered|already been registered/i.test(msg)) return "Já existe uma conta com este email. Experimente \"Entrar\" ou \"Esqueci a senha\".";
+  if (/password.*(at least|short)/i.test(msg)) return "A senha deve ter pelo menos 6 caracteres.";
+  if (/rate limit|too many/i.test(msg)) return "Muitas tentativas. Espere um minuto e tente de novo.";
+  if (/email not confirmed/i.test(msg)) return "Confirme primeiro o seu email (verifique o spam).";
+  if (/valid email|invalid.*email/i.test(msg)) return "Escreva um email válido.";
+  return msg;
+}
 
 /* manter a sessão guardada no telemóvel, para não pedir login sempre que reabre a app */
 const SESSION_KEY = "mainga_session";
@@ -535,11 +554,13 @@ function playCompatibleBeep() {
 /* ---------- main app ---------- */
 function MaingaApp() {
   const [session, setSession] = useState(null); // { token, user }
-  const [authStep, setAuthStep] = useState("email");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authMode, setAuthMode] = useState("entrar"); // "entrar" | "registar" | "recuperar"
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authInfo, setAuthInfo] = useState("");
 
   const [view, setView] = useState(() => {
     // permite abrir directamente em /privacidade, /termos ou /sobre (ex: a partir de um link partilhado,
@@ -588,21 +609,32 @@ function MaingaApp() {
     document.body.scrollTop = 0;
   }, [view]);
 
+  // link do email (recuperar senha / confirmar conta): o Supabase devolve os tokens no "#hash" do endereço
   useEffect(() => {
-    if (!window.location.hash || !window.location.hash.includes("access_token")) return;
-    const params = new URLSearchParams(window.location.hash.slice(1));
+    const hash = window.location.hash;
+    if (!hash) return;
+    const params = new URLSearchParams(hash.slice(1));
+
+    if (params.get("error_description")) {
+      showToast("Este link expirou ou já foi usado. Peça um novo em \"Esqueci a senha\".", "garnet");
+      window.history.replaceState(null, "", window.location.pathname);
+      return;
+    }
+
     const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
     if (!accessToken) return;
+    const refreshToken = params.get("refresh_token");
+    const isRecovery = params.get("type") === "recovery";
+
     (async () => {
       try {
         const user = await authApi.getUser(accessToken);
         const newSession = { token: accessToken, refreshToken, user };
         setSession(newSession);
         persistSession(newSession);
-        showToast("Sessão iniciada a partir do link do email.");
+        if (isRecovery) setView("redefinir");
       } catch (err) {
-        showToast(`Erro ao confirmar login: ${err.message}`, "garnet");
+        showToast(`Erro ao confirmar o link: ${err.message}`, "garnet");
       } finally {
         window.history.replaceState(null, "", window.location.pathname);
       }
@@ -611,6 +643,8 @@ function MaingaApp() {
 
   // ao abrir a app, tenta restaurar uma sessão guardada no telemóvel
   useEffect(() => {
+    // se vem de um link de email, a sessão do link tem prioridade sobre a antiga
+    if (window.location.hash.includes("access_token")) { setCheckingSession(false); return; }
     const saved = loadPersistedSession();
     if (!saved?.token) { setCheckingSession(false); return; }
     (async () => {
@@ -721,49 +755,60 @@ function MaingaApp() {
     api.admins.check(session.token, session.user.id).then(setIsAdmin).catch(() => setIsAdmin(false));
   }, [session]);
 
-  const [authMode, setAuthMode] = useState("entrar"); // "entrar" | "registar"
-  const [showEmailFallback, setShowEmailFallback] = useState(false);
-
-  const signInWithGoogle = () => {
-    const redirectTo = encodeURIComponent(window.location.origin);
-    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
+  const afterLogin = (data) => {
+    const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
+    setSession(newSession);
+    persistSession(newSession);
+    setPassword("");
+    setView((v) => (v === "entrar" ? "feed" : v));
   };
 
-  const sendCode = async () => {
+  const submitAuth = async () => {
     setAuthLoading(true);
     setAuthError("");
+    setAuthInfo("");
     try {
-      await authApi.sendCode(email, authMode === "registar");
-      setAuthStep("code");
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (authMode === "recuperar") {
+        await authApi.recover(cleanEmail);
+        setAuthInfo("Se este email tiver conta, enviámos um link para redefinir a senha. Verifique também o spam.");
+        return;
+      }
+
+      if (password.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
+
+      if (authMode === "registar") {
+        const data = await authApi.signUp(cleanEmail, password);
+        if (data?.access_token) {
+          afterLogin(data);
+          showToast("Conta criada. Bem-vindo à Mainga!");
+        } else {
+          // confirmação de email ligada no Supabase
+          setAuthInfo("Conta criada. Confirme o email que lhe enviámos e depois entre.");
+          setAuthMode("entrar");
+        }
+        return;
+      }
+
+      const data = await authApi.signIn(cleanEmail, password);
+      afterLogin(data);
     } catch (err) {
-      const msg = /not found|does not exist|invalid/i.test(err.message)
-        ? "Não encontrámos nenhuma conta com este email. Experimente \"Criar conta\" em vez de \"Entrar\"."
-        : err.message;
-      setAuthError(msg);
+      setAuthError(translateAuthError(err.message));
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const verifyCode = async () => {
-    setAuthLoading(true);
-    setAuthError("");
-    const primaryType = authMode === "registar" ? "signup" : "magiclink";
+  const saveNewPassword = async (newPassword) => {
     try {
-      let data;
-      try {
-        data = await authApi.verifyCode(email, code, primaryType);
-      } catch (firstErr) {
-        // versões diferentes do Supabase esperam tipos diferentes, tenta o tipo unificado como recurso
-        data = await authApi.verifyCode(email, code, "email");
-      }
-      const newSession = { token: data.access_token, refreshToken: data.refresh_token, user: data.user };
-      setSession(newSession);
-      persistSession(newSession);
+      await authApi.updatePassword(session.token, newPassword);
+      showToast("Senha atualizada com sucesso.");
+      setView("feed");
+      return true;
     } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setAuthLoading(false);
+      showToast(`Erro: ${translateAuthError(err.message)}`, "garnet");
+      return false;
     }
   };
 
@@ -774,8 +819,10 @@ function MaingaApp() {
     setRequests([]);
     setView("feed");
     setEmail("");
-    setCode("");
-    setAuthStep("email");
+    setPassword("");
+    setAuthMode("entrar");
+    setAuthError("");
+    setAuthInfo("");
   };
 
   const myDonor = useMemo(
@@ -1002,109 +1049,134 @@ function MaingaApp() {
     `}</style>
   );
 
-  const renderAuthForm = (message) => (
-    <div className="fadeUp max-w-sm mx-auto px-2 py-10">
-      <div className="rounded-2xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.45)" }}>
-        <div className="relative" style={{ height: 100 }}>
-          <img
-            src={HERO_PHOTOS[0].url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ filter: "blur(3px) brightness(0.55)" }}
-          />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(20,16,13,0.25), rgba(20,16,13,0.96))" }} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
-              Mainga <span style={{ fontSize: "0.7em" }} aria-hidden="true">🇦🇴</span>
-            </span>
-            <div className="mt-1.5"><PulseLine w={100} /></div>
+  const renderAuthForm = (message) => {
+    const isSignup = authMode === "registar";
+    const isRecover = authMode === "recuperar";
+    const title = isRecover
+      ? "Recupere o acesso à sua conta."
+      : isSignup
+        ? "Crie a sua conta em segundos."
+        : (message || t(lang, "auth_login_title"));
+
+    return (
+      <div className="fadeUp max-w-sm mx-auto px-2 py-10">
+        <div className="rounded-2xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.45)" }}>
+          <div className="relative" style={{ height: 100 }}>
+            <img src={HERO_PHOTOS[0].url} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ filter: "blur(3px) brightness(0.55)" }} />
+            <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(20,16,13,0.25), rgba(20,16,13,0.96))" }} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-extrabold tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
+                Mainga <span style={{ fontSize: "0.7em" }} aria-hidden="true">🇦🇴</span>
+              </span>
+              <div className="mt-1.5"><PulseLine w={100} /></div>
+            </div>
           </div>
-        </div>
 
-        <div className="px-6 py-7 text-center">
-          <p className="text-sm mb-7" style={{ color: C.muted }}>
-            {message || t(lang, "auth_login_title")}
-          </p>
+          <form
+            className="px-6 py-7"
+            onSubmit={(e) => { e.preventDefault(); if (!authLoading) submitAuth(); }}
+          >
+            <p className="text-sm mb-6 text-center" style={{ color: C.muted }}>{title}</p>
 
-          {authStep === "email" ? (
-            <>
-              <button
-                onClick={signInWithGoogle}
-                className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg font-semibold text-sm mb-5 transition-transform active:scale-[0.98]"
-                style={{ background: "#fff", color: "#1F1F1F" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/>
-                  <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/>
-                  <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/>
-                  <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
-                </svg>
-                {t(lang, "auth_google")}
-              </button>
+            {!isRecover && (
+              <div className="flex gap-2 mb-5 justify-center">
+                {[["entrar", t(lang, "auth_signin")], ["registar", t(lang, "auth_signup")]].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => { setAuthMode(mode); setAuthError(""); setAuthInfo(""); }}
+                    className="px-4 py-1.5 rounded-full text-sm font-semibold"
+                    style={{
+                      background: authMode === mode ? C.garnetSoft : "transparent",
+                      color: authMode === mode ? C.garnet : C.muted,
+                      border: `1px solid ${authMode === mode ? C.garnet : C.line}`,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-              {!showEmailFallback ? (
-                <button
-                  onClick={() => setShowEmailFallback(true)}
-                  className="w-full text-center text-sm font-semibold py-2"
-                  style={{ color: C.muted }}
-                >
-                  Não tem Google? <span style={{ color: C.gold }}>Entrar com email</span>
-                </button>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3 mb-5 mt-2">
-                    <div style={{ flex: 1, height: 1, background: C.line }} />
-                    <span className="text-xs" style={{ color: C.faint }}>{t(lang, "auth_or")}</span>
-                    <div style={{ flex: 1, height: 1, background: C.line }} />
-                  </div>
+            <Field label={t(lang, "auth_email_label")}>
+              <input
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputClass}
+                style={inputStyle}
+                placeholder="oseu@email.com"
+              />
+            </Field>
 
-                  <div className="flex gap-2 mb-5 justify-center">
-                    <button
-                      onClick={() => setAuthMode("entrar")}
-                      className="px-4 py-1.5 rounded-full text-sm font-semibold"
-                      style={{ background: authMode === "entrar" ? C.garnetSoft : "transparent", color: authMode === "entrar" ? C.garnet : C.muted, border: `1px solid ${authMode === "entrar" ? C.garnet : C.line}` }}
-                    >
-                      {t(lang, "auth_signin")}
-                    </button>
-                    <button
-                      onClick={() => setAuthMode("registar")}
-                      className="px-4 py-1.5 rounded-full text-sm font-semibold"
-                      style={{ background: authMode === "registar" ? C.garnetSoft : "transparent", color: authMode === "registar" ? C.garnet : C.muted, border: `1px solid ${authMode === "registar" ? C.garnet : C.line}` }}
-                    >
-                      {t(lang, "auth_signup")}
-                    </button>
-                  </div>
-                  <Field label={t(lang, "auth_email_label")}>
-                    <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} style={inputStyle} placeholder="oseu@email.com" />
-                  </Field>
-                  {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
-                  <Btn full onClick={sendCode} disabled={authLoading || !email}>
-                    {authLoading ? t(lang, "auth_sending") : t(lang, "auth_send_code")}
-                  </Btn>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-xs mb-4" style={{ color: C.muted }}>
-                Mandámos um código de 6 dígitos para <strong style={{ color: C.paper }}>{email}</strong>.
-              </p>
-              <Field label={t(lang, "auth_code_label")}>
-                <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={inputClass} style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.3em", fontFamily: "'JetBrains Mono', monospace" }} placeholder="000000" />
+            {!isRecover && (
+              <Field label="Senha">
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={isSignup ? "new-password" : "current-password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={inputClass}
+                    style={{ ...inputStyle, paddingRight: 42 }}
+                    placeholder={isSignup ? "Mínimo 6 caracteres" : "A sua senha"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    aria-label={showPassword ? "Esconder senha" : "Mostrar senha"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: C.faint }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </Field>
-              {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
-              <Btn full onClick={verifyCode} disabled={authLoading || code.length !== 6}>
-                {authLoading ? t(lang, "auth_verifying") : t(lang, "auth_signin")}
-              </Btn>
-              <button onClick={() => { setAuthStep("email"); setCode(""); setAuthError(""); }} className="text-xs mt-3" style={{ color: C.faint }}>
-                {t(lang, "auth_other_email")}
+            )}
+
+            {authMode === "entrar" && (
+              <div className="text-right -mt-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("recuperar"); setAuthError(""); setAuthInfo(""); }}
+                  className="text-xs font-semibold"
+                  style={{ color: C.gold }}
+                >
+                  Esqueci a senha
+                </button>
+              </div>
+            )}
+
+            {authError && <p className="text-xs mb-3" style={{ color: C.garnet }}>{authError}</p>}
+            {authInfo && <p className="text-xs mb-3" style={{ color: C.green }}>{authInfo}</p>}
+
+            <Btn full type="submit" disabled={authLoading || !email || (!isRecover && !password)}>
+              {authLoading
+                ? t(lang, "auth_sending")
+                : isRecover
+                  ? "Enviar link de recuperação"
+                  : isSignup
+                    ? t(lang, "auth_signup")
+                    : t(lang, "auth_signin")}
+            </Btn>
+
+            {isRecover && (
+              <button
+                type="button"
+                onClick={() => { setAuthMode("entrar"); setAuthError(""); setAuthInfo(""); }}
+                className="w-full text-xs mt-4"
+                style={{ color: C.faint }}
+              >
+                ← Voltar a entrar
               </button>
-            </>
-          )}
+            )}
+          </form>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="w-full min-h-full" style={{ background: C.bg, fontFamily: "'Inter', sans-serif", color: C.paper }}>
@@ -1256,6 +1328,11 @@ function MaingaApp() {
             )}
             {view === "procurar" && <Procurar donors={donors} onReveal={revealContact} lang={lang} />}
             {view === "entrar" && renderAuthForm("Entre com o seu email para continuar.")}
+            {view === "redefinir" && (
+              session
+                ? <ResetPassword onSave={saveNewPassword} />
+                : renderAuthForm("Entre para definir uma nova senha.")
+            )}
             {view === "instituicao" && (
               session
                 ? <Instituicao myInstitution={myInstitution} donors={donors} onApply={applyInstitution} onReveal={revealContact} />
@@ -3047,6 +3124,46 @@ function Publicar({ donors, onSubmit, onDone, showToast }) {
   );
 }
 
+/* ---------- REDEFINIR SENHA ---------- */
+function ResetPassword({ onSave }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (pw.length < 6) return setError("A senha deve ter pelo menos 6 caracteres.");
+    if (pw !== pw2) return setError("As duas senhas não são iguais.");
+    setError("");
+    setSaving(true);
+    await onSave(pw);
+    setSaving(false);
+  };
+
+  return (
+    <form onSubmit={submit} className="fadeUp max-w-sm mx-auto py-10">
+      <h2 className="text-2xl font-extrabold mb-1" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+        Nova senha
+      </h2>
+      <p className="text-sm mb-6" style={{ color: C.muted }}>Escolha a senha que vai usar para entrar na Mainga.</p>
+      <Field label="Nova senha">
+        <input type={show ? "text" : "password"} autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} className={inputClass} style={inputStyle} />
+      </Field>
+      <Field label="Repita a senha">
+        <input type={show ? "text" : "password"} autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputClass} style={inputStyle} />
+      </Field>
+      <label className="flex items-center gap-2 mb-4 text-xs cursor-pointer" style={{ color: C.muted }}>
+        <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} style={{ accentColor: C.garnet }} />
+        Mostrar senhas
+      </label>
+      {error && <p className="text-xs mb-3" style={{ color: C.garnet }}>{error}</p>}
+      <Btn full type="submit" disabled={saving || !pw || !pw2}>{saving ? "A guardar…" : "Guardar nova senha"}</Btn>
+    </form>
+  );
+}
+
 /* ---------- ADMIN ---------- */
 function Instituicao({ myInstitution, donors, onApply, onReveal }) {
   const [form, setForm] = useState({ name: "", kind: "banco_de_sangue", province: "Luanda", municipio: "", contact_phone: "", contact_email: "" });
@@ -3634,5 +3751,4 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
-
 
