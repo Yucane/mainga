@@ -1116,6 +1116,24 @@ function MaingaApp() {
       }
       @keyframes fadeUp { from { opacity:0; transform:translateY(6px);} to {opacity:1; transform:translateY(0);} }
       .fadeUp { animation: fadeUp .35s ease both; }
+      .mainga-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.45); }
+      .pm-wrap { background: transparent; border: none; }
+      .pm { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font: 700 12px 'JetBrains Mono', monospace; transition: transform .15s ease, box-shadow .15s ease; cursor: pointer; box-sizing: border-box; }
+      .pm-on { background: ${C.gold}; color: #231506; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 2px 10px rgba(0,0,0,0.55); }
+      .pm-off { background: #6b6b6b; border: 1.5px solid rgba(255,255,255,0.45); }
+      .pm:hover { transform: scale(1.18); }
+      .pm-sel { background: ${C.garnet}; color: #fff; border: 2px solid #fff; animation: ringPulse 1.8s ease-out infinite; }
+      @keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(198,41,61,0.6); } 100% { box-shadow: 0 0 0 14px rgba(198,41,61,0); } }
+      .hm { width: 100%; height: 100%; border-radius: 50%; background: #3B82C4; border: 1.5px solid #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.5); box-sizing: border-box; }
+      .leaflet-bar { border: 1px solid ${C.line} !important; border-radius: 12px !important; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.5) !important; }
+      .leaflet-bar a { background: rgba(20,16,13,0.88) !important; color: ${C.paper} !important; border-bottom: 1px solid ${C.line} !important; width: 34px !important; height: 34px !important; line-height: 34px !important; }
+      .leaflet-bar a:hover { background: ${C.surfaceRaised} !important; }
+      .mainga-tip.leaflet-tooltip { background: ${C.surface}; color: ${C.paper}; border: 1px solid ${C.line}; border-radius: 10px; padding: 6px 10px; font-size: 12px; line-height: 1.35; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+      .mainga-tip.leaflet-tooltip-top:before { border-top-color: ${C.line}; }
+      .leaflet-control-attribution { background: rgba(20,16,13,0.75) !important; color: ${C.faint} !important; font-size: 10px !important; }
+      .leaflet-control-attribution a { color: ${C.muted} !important; }
+      .leaflet-container { background: #1a1a1a; font-family: 'Inter', sans-serif; }
       ::selection { background: ${C.garnet}; color: #fff; }
       input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px ${C.garnetSoft}; border-color: ${C.garnet}; }
     `}</style>
@@ -1517,12 +1535,12 @@ function StoryIntro({ lang, onDone }) {
     if (shown >= total + 1) return;
     // cada parágrafo tem tempo para ser lido; o botão só aparece depois do último
     const len = story.paragraphs[Math.min(shown, total) - 1]?.length || 80;
-    const t = setTimeout(() => setShown((n) => n + 1), Math.min(5200, 1500 + len * 22));
+    const t = setTimeout(() => setShown((n) => n + 1), Math.min(2800, 700 + len * 9));
     return () => clearTimeout(t);
   }, [shown, total, story]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }, [shown]);
 
   const ready = shown >= total + 1;
@@ -1557,22 +1575,20 @@ function StoryIntro({ lang, onDone }) {
             <div className="flex justify-center mt-3"><PulseLine w={120} /></div>
           </div>
 
-          <div className="space-y-5">
-            {story.paragraphs.map((text, i) => {
+          <div className="space-y-6 text-center">
+            {story.paragraphs.slice(0, shown).map((text, i) => {
               const last = i === total - 1;
               const strong = i === 0 || i === 4 || last;
               return (
                 <p
                   key={i}
-                  className="leading-relaxed"
+                  className="leading-relaxed fadeUp"
                   style={{
                     fontFamily: strong ? "'Bricolage Grotesque', sans-serif" : "'Inter', sans-serif",
-                    fontSize: strong ? "1.2rem" : "1.02rem",
+                    fontSize: strong ? "1.3rem" : "1.08rem",
                     fontWeight: strong ? 600 : 400,
-                    color: strong ? C.paper : "rgba(245,237,228,0.82)",
-                    opacity: i < shown ? 1 : 0,
-                    transform: i < shown ? "translateY(0)" : "translateY(10px)",
-                    transition: "opacity 1.1s ease, transform 1.1s ease",
+                    color: strong ? C.paper : "rgba(245,237,228,0.85)",
+                    animationDuration: ".7s",
                   }}
                 >
                   {text}
@@ -1581,7 +1597,15 @@ function StoryIntro({ lang, onDone }) {
             })}
           </div>
 
-          <div className="mt-10 text-center" style={{ minHeight: 90, opacity: ready ? 1 : 0, transition: "opacity 1s ease", pointerEvents: ready ? "auto" : "none" }}>
+          {!ready && (
+            <div className="mt-8 text-center">
+              <button onClick={() => setShown(total + 1)} className="text-xs underline" style={{ color: C.faint }}>
+                {lang === "en" ? "Show all" : "Mostrar tudo"}
+              </button>
+            </div>
+          )}
+
+          <div className="mt-10 text-center" style={{ display: ready ? "block" : "none" }}>
             <button
               onClick={go}
               disabled={!ready}
@@ -2543,52 +2567,82 @@ function AngolaMap({ selected, onSelect, donors }) {
   const mapEl = useRef(null);
   const mapObj = useRef(null);
   const markers = useRef([]);
-  const hospitalMarkers = useRef([]);
+  const hospitalLayer = useRef(null);
+  const firstFly = useRef(true);
+  const ANGOLA_BOUNDS = [[-18.2, 11.4], [-4.2, 24.2]];
 
   useEffect(() => {
     if (mapObj.current || !mapEl.current) return;
-    mapObj.current = L.map(mapEl.current, { center: [-12.3, 17.5], zoom: 5, zoomControl: true });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: "abcd",
+    const map = L.map(mapEl.current, { zoomControl: false, minZoom: 4, maxZoom: 16, attributionControl: true });
+    mapObj.current = map;
+    map.fitBounds(ANGOLA_BOUNDS, { padding: [10, 10] });
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    // OpenStreetMap não precisa de chave. O tom escuro vem do CSS (classe mainga-tiles).
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 18,
-    }).addTo(mapObj.current);
-    setTimeout(() => mapObj.current?.invalidateSize(), 200);
-    return () => { mapObj.current?.remove(); mapObj.current = null; };
+      className: "mainga-tiles",
+    }).addTo(map);
+    setTimeout(() => map.invalidateSize(), 200);
+    return () => { map.remove(); mapObj.current = null; };
   }, []);
 
+  // províncias: círculo com o número de doadores disponíveis
   useEffect(() => {
-    if (!mapObj.current) return;
+    const map = mapObj.current;
+    if (!map) return;
     markers.current.forEach((m) => m.remove());
     markers.current = [];
     Object.entries(PROVINCE_COORDS).forEach(([prov, coords]) => {
       const count = donors.filter((d) => d.province === prov && d.available).length;
       const isSelected = selected === prov;
-      const marker = L.circleMarker(coords, {
-        radius: isSelected ? 11 : count > 0 ? 8 : 6,
-        color: isSelected ? "#fff" : "rgba(255,255,255,0.55)",
-        weight: isSelected ? 2 : 1,
-        fillColor: isSelected ? C.garnet : count > 0 ? C.gold : "#6b6b6b",
-        fillOpacity: 0.9,
-      }).addTo(mapObj.current);
-      marker.bindTooltip(`${prov}${count > 0 ? ` · ${count} doador${count > 1 ? "es" : ""}` : ""}`, { direction: "top", opacity: 0.95 });
+      const size = count > 0 || isSelected ? 30 : 12;
+      const icon = L.divIcon({
+        className: "pm-wrap",
+        html: `<div class="pm ${count > 0 ? "pm-on" : "pm-off"} ${isSelected ? "pm-sel" : ""}">${count > 0 ? (count > 99 ? "99+" : count) : ""}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+      const marker = L.marker(coords, { icon, zIndexOffset: isSelected ? 1000 : count > 0 ? 100 : 0, keyboard: false }).addTo(map);
+      marker.bindTooltip(
+        `<strong>${prov}</strong><br/>${count > 0 ? `${count} doador${count > 1 ? "es" : ""} disponíve${count > 1 ? "is" : "l"}` : "Ainda sem doadores"}`,
+        { direction: "top", offset: [0, -size / 2], opacity: 1, className: "mainga-tip" }
+      );
       marker.on("click", () => onSelect(isSelected ? "Todas" : prov));
       markers.current.push(marker);
     });
   }, [selected, donors]);
 
-  // hospitais de referência: um marcador por hospital, distribuído em espiral
-  // à volta do centro da província (padrão "girassol", mais compacto e uniforme
-  // que um desvio aleatório, mesmo com dezenas de hospitais na mesma província)
+  // aproxima da província escolhida, ou volta a mostrar Angola inteira
   useEffect(() => {
-    if (!mapObj.current) return;
-    hospitalMarkers.current.forEach((m) => m.remove());
-    hospitalMarkers.current = [];
+    const map = mapObj.current;
+    if (!map) return;
+    if (firstFly.current) { firstFly.current = false; return; }
+    if (selected !== "Todas" && PROVINCE_COORDS[selected]) {
+      map.flyTo(PROVINCE_COORDS[selected], 8, { duration: 0.9 });
+    } else {
+      map.flyToBounds(ANGOLA_BOUNDS, { padding: [10, 10], duration: 0.9 });
+    }
+  }, [selected]);
+
+  // hospitais de referência: só aparecem ao aproximar (zoom 8 ou mais), em espiral à volta de cada província
+  useEffect(() => {
+    const map = mapObj.current;
+    if (!map) return;
+    hospitalLayer.current?.remove();
+    const group = L.layerGroup();
+    hospitalLayer.current = group;
+    const syncHospitals = () => {
+      if (!mapObj.current) return;
+      if (map.getZoom() >= 8) { if (!map.hasLayer(group)) group.addTo(map); }
+      else if (map.hasLayer(group)) group.remove();
+    };
+    map.on("zoomend", syncHospitals);
     const hospitalIcon = L.divIcon({
-      className: "",
-      html: `<div style="width:11px;height:11px;border-radius:3px;background:#3B82C4;border:1.5px solid #fff;"></div>`,
-      iconSize: [11, 11],
-      iconAnchor: [5, 5],
+      className: "pm-wrap",
+      html: `<div class="hm"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M4 1h2v3h3v2H6v3H4V6H1V4h3z" fill="#fff"/></svg></div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
     });
     const GOLDEN_ANGLE = 2.399963229728653;
     const seenPerProvince = {};
@@ -2600,46 +2654,65 @@ function AngolaMap({ selected, onSelect, donors }) {
       const angle = n * GOLDEN_ANGLE;
       const radius = 0.02 * Math.sqrt(n);
       const offset = [base[0] + Math.cos(angle) * radius, base[1] + Math.sin(angle) * radius];
-      const marker = L.marker(offset, { icon: hospitalIcon }).addTo(mapObj.current);
-      marker.bindTooltip(`🏥 ${h.name}`, { direction: "top", opacity: 0.95 });
-      hospitalMarkers.current.push(marker);
+      L.marker(offset, { icon: hospitalIcon, keyboard: false })
+        .addTo(group)
+        .bindTooltip(`<strong>${h.name}</strong><br/>Hospital de referência`, { direction: "top", offset: [0, -10], opacity: 1, className: "mainga-tip" });
     });
+    syncHospitals();
+    return () => { map.off("zoomend", syncHospitals); };
   }, []);
-
 
   const locateMe = () => {
     if (!navigator.geolocation || !mapObj.current) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => mapObj.current.setView([pos.coords.latitude, pos.coords.longitude], 8),
+      (pos) => mapObj.current.flyTo([pos.coords.latitude, pos.coords.longitude], 9, { duration: 0.9 }),
       () => {}
     );
   };
 
+  const glass = { background: "rgba(20,16,13,0.82)", border: `1px solid ${C.line}`, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" };
+
   return (
-    <div className="rounded-xl overflow-hidden mb-4 relative" style={{ border: `1px solid ${C.line}` }}>
-      <div ref={mapEl} style={{ height: 320, width: "100%", background: "#1a1a1a" }} />
+    <div className="rounded-2xl overflow-hidden mb-5 relative" style={{ border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.45)" }}>
+      <div ref={mapEl} style={{ height: 400, width: "100%", background: "#1a1a1a" }} />
+
+      {/* topo esquerdo: o que está seleccionado */}
+      <div className="absolute top-3 left-3 right-28 flex items-center gap-2 pointer-events-none" style={{ zIndex: 1000 }}>
+        <div className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 pointer-events-auto max-w-full" style={{ ...glass, color: C.paper }}>
+          {selected === "Todas" ? (
+            <><MapPin size={12} color={C.gold} /> <span className="truncate">Toque numa província</span></>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.garnet }} />
+              <span className="truncate">{selected}</span>
+              <button onClick={() => onSelect("Todas")} aria-label="Limpar província" style={{ color: C.muted }}><X size={13} /></button>
+            </>
+          )}
+        </div>
+      </div>
+
       <button
         onClick={locateMe}
-        className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1"
-        style={{ background: C.surface, color: C.paper, border: `1px solid ${C.line}`, zIndex: 1000 }}
+        className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-transform active:scale-95"
+        style={{ ...glass, color: C.paper, zIndex: 1000 }}
       >
-        <MapPin size={12} /> Perto de mim
+        <MapPin size={12} color={C.gold} /> Perto de mim
       </button>
-      <div className="px-3 py-2 flex items-center gap-4 text-xs" style={{ background: C.surface, color: C.muted, borderTop: `1px solid ${C.line}` }}>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block rounded-full" style={{ width: 9, height: 9, background: C.gold }} /> Doadores disponíveis
+
+      {/* legenda sobre o mapa */}
+      <div className="absolute bottom-3 left-3 px-3 py-2 rounded-xl text-[11px] flex flex-col gap-1.5" style={{ ...glass, color: C.muted, zIndex: 1000 }}>
+        <span className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-full font-bold" style={{ width: 16, height: 16, background: C.gold, color: "#231506", fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>3</span>
+          Doadores disponíveis
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block" style={{ width: 9, height: 9, background: "#3B82C4", borderRadius: 2 }} /> Hospital de referência
+        <span className="flex items-center gap-2">
+          <span className="inline-block rounded-full" style={{ width: 9, height: 9, background: "#6b6b6b", marginLeft: 3, marginRight: 1 }} />
+          Sem doadores ainda
         </span>
-      </div>
-      <div className="px-3 py-2.5 text-xs flex items-center justify-between" style={{ background: C.surface, color: C.muted }}>
-        <span>
-          {selected === "Todas" ? "Toque num ponto do mapa para filtrar" : <>Província seleccionada: <strong style={{ color: C.paper }}>{selected}</strong></>}
+        <span className="flex items-center gap-2">
+          <span className="inline-block rounded-full" style={{ width: 16, height: 16, background: "#3B82C4", border: "1.5px solid #fff" }} />
+          Hospitais (aproxime)
         </span>
-        {selected !== "Todas" && (
-          <button onClick={() => onSelect("Todas")} className="font-semibold" style={{ color: C.garnet }}>Limpar</button>
-        )}
       </div>
     </div>
   );
@@ -2684,57 +2757,83 @@ function Procurar({ donors, onReveal, lang }) {
 
   return (
     <div className="fadeUp">
-      <div className="relative rounded-xl overflow-hidden mb-6" style={{ height: 110 }}>
-        <img
-          src="https://images.unsplash.com/photo-1643297654416-05795d62e39c?w=1200&q=80&auto=format&fit=crop"
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: "blur(3px) brightness(0.5)" }}
-        />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.95), rgba(20,16,13,0.25))" }} />
-        <div className="absolute inset-0 flex flex-col justify-end p-4">
-          <h2 className="text-2xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
+      <div className="relative rounded-2xl overflow-hidden mb-5" style={{ height: 130, border: `1px solid ${C.line}` }}>
+        <Photo src={HERO_PHOTOS[7].url} className="absolute inset-0 w-full h-full object-cover" style={{ filter: "brightness(0.5)" }} />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(20,16,13,0.95), rgba(20,16,13,0.2))" }} />
+        <div className="absolute inset-0 flex flex-col justify-end p-5">
+          <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: C.paper }}>
             {t(lang, "procurar_title")}
           </h2>
+          <p className="text-xs sm:text-sm mt-1" style={{ color: "rgba(245,237,228,0.8)" }}>{t(lang, "procurar_subtitle")}</p>
         </div>
       </div>
-      <p className="text-sm mb-6" style={{ color: C.muted }}>
-        {t(lang, "procurar_subtitle")}
-      </p>
 
       <AngolaMap selected={province} onSelect={setProvince} donors={donors} />
 
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass} style={{ ...inputStyle, width: "auto" }}>
-          <option>Todos</option>
-          {BLOOD_TYPES.map((t) => <option key={t}>{t}</option>)}
-        </select>
-        <select value={province} onChange={(e) => setProvince(e.target.value)} className={inputClass} style={{ ...inputStyle, width: "auto" }}>
-          <option>Todas</option>
+      {/* grupo sanguíneo: botões em vez de lista, mais rápido de tocar */}
+      <div className="mb-3">
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint, fontFamily: "'JetBrains Mono', monospace" }}>Grupo sanguíneo</div>
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {["Todos", ...BLOOD_TYPES].map((bt) => {
+            const on = type === bt;
+            return (
+              <button
+                key={bt}
+                onClick={() => setType(bt)}
+                aria-pressed={on}
+                className="shrink-0 px-4 h-10 rounded-full text-sm font-bold transition-colors"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  background: on ? C.garnet : C.surfaceRaised,
+                  color: on ? "#fff" : C.muted,
+                  border: `1.5px solid ${on ? C.garnet : C.line}`,
+                  boxShadow: on ? `0 0 0 3px ${C.garnetSoft}` : "none",
+                }}
+              >
+                {bt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <select value={province} onChange={(e) => setProvince(e.target.value)} className={inputClass} style={{ ...inputStyle, width: "auto" }} aria-label="Província">
+          <option value="Todas">Todas as províncias</option>
           {PROVINCES.map((p) => <option key={p}>{p}</option>)}
         </select>
+        <div className="text-sm" style={{ color: C.muted }}>
+          <strong style={{ color: results.length > 0 ? C.green : C.paper, fontFamily: "'JetBrains Mono', monospace", fontSize: "1.1rem" }}>{results.length}</strong>{" "}
+          doador{results.length !== 1 ? "es" : ""} disponíve{results.length !== 1 ? "is" : "l"}
+          {type !== "Todos" ? ` · ${type}` : ""}{province !== "Todas" ? ` · ${province}` : ""}
+        </div>
       </div>
 
       {results.length === 0 ? (
-        <div className="text-center py-16 rounded-xl" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px dashed ${C.line}`, color: C.muted }}>
-          Ninguém encontrado com estes filtros ainda.
+        <div className="text-center py-14 px-5 rounded-2xl" style={{ background: C.surface, border: `1px dashed ${C.line}`, color: C.muted }}>
+          <Search size={26} color={C.faint} className="mx-auto mb-3" />
+          <p className="font-semibold mb-1" style={{ color: C.paper }}>Ninguém encontrado com estes filtros.</p>
+          <p className="text-sm mb-4">Tente outro grupo sanguíneo ou outra província. Um doador O- serve para qualquer grupo.</p>
+          {(type !== "Todos" || province !== "Todas") && (
+            <Btn variant="ghost" onClick={() => { setType("Todos"); setProvince("Todas"); }}>Limpar filtros</Btn>
+          )}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
           {results.map((d) => {
             const contact = revealed[d.id];
             return (
-              <div key={d.id} className="rounded-xl p-4 flex items-center gap-3" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
+              <div key={d.id} className="rounded-2xl p-4 flex items-center gap-3.5" style={{ background: C.surface, boxShadow: "0 2px 10px rgba(0,0,0,0.35)", border: `1px solid ${C.line}` }}>
                 <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center font-bold shrink-0 text-sm"
-                  style={{ background: C.garnetSoft, color: C.garnet, fontFamily: "'JetBrains Mono', monospace" }}
+                  className="w-14 h-14 rounded-full flex items-center justify-center font-bold shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${C.garnet}, ${C.garnetDeep})`, color: "#fff", fontFamily: "'JetBrains Mono', monospace", fontSize: "1.05rem", boxShadow: `0 0 0 4px ${C.garnetSoft}` }}
                 >
                   {d.bloodType}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold truncate">{d.name}</div>
-                  <div className="text-xs flex items-center gap-1 mb-1" style={{ color: C.muted }}>
-                    <MapPin size={11} /> {d.city}, {d.province}
+                  <div className="font-bold truncate" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>{d.name}</div>
+                  <div className="text-xs flex items-center gap-1 mb-1.5" style={{ color: C.muted }}>
+                    <MapPin size={11} /> {d.city ? `${d.city}, ` : ""}{d.province}
                   </div>
                   {contact ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -2761,10 +2860,10 @@ function Procurar({ donors, onReveal, lang }) {
                     <button
                       onClick={() => reveal(d.id)}
                       disabled={revealing === d.id}
-                      className="text-xs mt-1 font-semibold"
-                      style={{ color: C.garnet }}
+                      className="text-xs font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                      style={{ color: C.garnet, background: C.garnetSoft }}
                     >
-                      {revealing === d.id ? "A revelar…" : "Revelar contacto"}
+                      <Lock size={11} /> {revealing === d.id ? "A revelar…" : "Revelar contacto"}
                     </button>
                   )}
                 </div>
@@ -4294,4 +4393,3 @@ export default function Mainga() {
     </ErrorBoundary>
   );
 }
-
